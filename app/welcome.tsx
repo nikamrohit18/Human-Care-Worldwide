@@ -66,14 +66,11 @@ export default function WelcomeScreen() {
 
           {/* ── Logo ── */}
           <RNView style={styles.logoSection}>
-            <RNView style={styles.logoRing}>
-              <Image
-                source={require('../assets/images/icon.png')}
-                style={styles.logoImage}
-                resizeMode="contain"
-              />
-            </RNView>
-            <Text style={styles.brand}>Human Care Worldwide</Text>
+            <Image
+              source={require('../assets/images/hww-logo.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
             <Text style={styles.brandSub}>Global Medical Assistance</Text>
           </RNView>
 
@@ -237,31 +234,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 28,
   },
-  logoRing: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 14,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 8,
-    overflow: 'hidden',
-  },
   logoImage: {
-    width: 88,
-    height: 88,
-  },
-  brand: {
-    fontSize: 22,
-    fontWeight: '800',
-    textAlign: 'center',
-    letterSpacing: 0.2,
-    marginBottom: 4,
+    width: 260,
+    height: 90,
+    marginBottom: 8,
   },
   brandSub: {
     fontSize: 13,
