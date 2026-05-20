@@ -14,8 +14,7 @@ export {
 } from 'expo-router';
 
 export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
+  initialRouteName: 'welcome',
 };
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -51,8 +50,21 @@ function RootLayoutNav() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
+        <Stack.Screen name="welcome" options={{ headerShown: false }} />
+        <Stack.Screen name="register" options={{ title: 'Create Account', headerBackTitle: 'Login' }} />
+        <Stack.Screen name="forgot-password" options={{ title: 'Forgot Password', headerBackTitle: 'Login' }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="services/ground-ambulance" options={{ title: 'Ground Ambulance' }} />
+        <Stack.Screen name="services/hospital-assistance" options={{ title: 'Hospital Assistance' }} />
+        <Stack.Screen name="services/hospitalization-support" options={{ title: 'Hospitalization Support' }} />
+        <Stack.Screen name="services/tele-consultation" options={{ title: 'Tele Consultation & House Call' }} />
+        <Stack.Screen name="services/home-healthcare" options={{ title: 'Home Healthcare' }} />
+        <Stack.Screen name="services/mortal-remains" options={{ title: 'Mortal Remains' }} />
+        <Stack.Screen name="services/corporate-medical" options={{ title: 'Corporate Medical Solution' }} />
+        <Stack.Screen name="services/private-charter" options={{ title: 'Private Charter Service' }} />
+        <Stack.Screen name="services/rotary-wing-repatriation" options={{ title: 'Rotary Wing Repatriation' }} />
+        <Stack.Screen name="services/commercial-airline" options={{ title: 'Commercial Airline' }} />
       </Stack>
     </ThemeProvider>
   );

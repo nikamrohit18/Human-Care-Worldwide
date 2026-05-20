@@ -1,5 +1,6 @@
 {
-  "enabledPlugins": {
-    "expo@claude-plugins-official": true
+  "statusLine": {
+    "type": "command",
+    "command": "bash \"D:\\Development Projects\\Human Care Worldwide\\.claude\\statusline-command.sh\""
   }
 }
