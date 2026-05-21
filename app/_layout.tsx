@@ -12,6 +12,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import Colors from '@/constants/Colors';
 import { setupNotifications, registerPushTokenIfNeeded } from '@/lib/notifications';
+import { clearLegacyConsultationData } from '@/lib/devCleanup';
 
 export {
   ErrorBoundary,
@@ -40,6 +41,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     setupNotifications();
+    clearLegacyConsultationData(); // one-shot: clears old AsyncStorage keys + cancels stale notifications
   }, []);
 
   useEffect(() => {
