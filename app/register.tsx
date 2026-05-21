@@ -7,6 +7,8 @@ import {
   Platform,
   ScrollView,
   View as RNView,
+  ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -14,6 +16,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { useAuth } from '@/context/AuthContext';
+import { firebaseErrorMessage } from '@/lib/firebaseErrors';
 
 type AccountType = 'individual' | 'partners' | 'corporate';
 type PartnerType = 'insurance' | 'hospital' | 'corporate-hr';
@@ -37,12 +41,207 @@ const GENDERS: { id: Gender; label: string }[] = [
   { id: 'other', label: 'Other' },
 ];
 
+// ─── Field must live OUTSIDE RegisterScreen so React doesn't recreate it on
+//     every render. Defining a component inside another component causes React
+//     to treat it as a new type each render → full unmount/remount → focus loss.
+function Field({
+  icon,
+  placeholder,
+  value,
+  onChangeText,
+  keyboardType = 'default',
+  autoCapitalize = 'words',
+  autoComplete = 'off',
+  isDark,
+}: {
+  icon: React.ComponentProps<typeof FontAwesome>['name'];
+  placeholder: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  keyboardType?: React.ComponentProps<typeof TextInput>['keyboardType'];
+  autoCapitalize?: React.ComponentProps<typeof TextInput>['autoCapitalize'];
+  autoComplete?: React.ComponentProps<typeof TextInput>['autoComplete'];
+  isDark: boolean;
+}) {
+  const inputBg = isDark ? '#1E1E1E' : '#F5F5F5';
+  const inputBorder = isDark ? '#2E2E2E' : '#E5E5E5';
+  const inputColor = isDark ? '#F5F5F5' : '#1A1A1A';
+  const placeholderColor = isDark ? '#555' : '#AAA';
+
+  return (
+    <RNView style={[styles.inputWrap, { backgroundColor: inputBg, borderColor: inputBorder }]}>
+      <FontAwesome name={icon} size={15} color={placeholderColor} style={styles.inputIcon} />
+      <TextInput
+        style={[styles.input, { color: inputColor }]}
+        placeholder={placeholder}
+        placeholderTextColor={placeholderColor}
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+        autoComplete={autoComplete}
+      />
+    </RNView>
+  );
+}
+
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+
+function parseDMY(str: string): Date {
+  const [d, m, y] = str.split('/').map(Number);
+  const date = new Date(y, m - 1, d);
+  return isNaN(date.getTime()) ? new Date(1990, 0, 1) : date;
+}
+
+function formatDMY(date: Date): string {
+  return [
+    date.getDate().toString().padStart(2, '0'),
+    (date.getMonth() + 1).toString().padStart(2, '0'),
+    date.getFullYear(),
+  ].join('/');
+}
+
+function dmyToISO(dmy: string): string {
+  if (!dmy || dmy.split('/').length !== 3) return '';
+  const [d, m, y] = dmy.split('/');
+  return `${y}-${m}-${d}`;
+}
+
+function isoToDMY(iso: string): string {
+  if (!iso || iso.split('-').length !== 3) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+const TODAY_ISO = new Date().toISOString().split('T')[0];
+const MIN_ISO = '1900-01-01';
+
+// ─── Cross-platform date picker field ─────────────────────────────────────────
+// Web  → browser-native <input type="date">
+// iOS/Android → @react-native-community/datetimepicker in a modal
+
+function DateField({
+  value,
+  onChange,
+  isDark,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  isDark: boolean;
+}) {
+  const [showPicker, setShowPicker] = useState(false);
+
+  const inputBg = isDark ? '#1E1E1E' : '#F5F5F5';
+  const inputBorder = isDark ? '#2E2E2E' : '#E5E5E5';
+  const inputColor = isDark ? '#F5F5F5' : '#1A1A1A';
+  const placeholderColor = isDark ? '#555' : '#AAA';
+
+  // ── Web ──────────────────────────────────────────────────────────────────────
+  if (Platform.OS === 'web') {
+    return (
+      <RNView style={[styles.inputWrap, { backgroundColor: inputBg, borderColor: inputBorder }]}>
+        <FontAwesome name="calendar-o" size={15} color={placeholderColor} style={styles.inputIcon} />
+        <RNView style={{ flex: 1, height: '100%', justifyContent: 'center' }}>
+          {/*
+           * @ts-ignore — raw <input> is valid in React Native Web.
+           * We use a browser-native date picker here to avoid extra dependencies.
+           */}
+          <input
+            type="date"
+            value={dmyToISO(value)}
+            min={MIN_ISO}
+            max={TODAY_ISO}
+            onChange={(e: any) => {
+              if (e.target.value) onChange(isoToDMY(e.target.value));
+            }}
+            style={{
+              border: 'none',
+              outline: 'none',
+              background: 'transparent',
+              fontSize: 15,
+              color: value ? inputColor : placeholderColor,
+              width: '100%',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              padding: 0,
+            }}
+          />
+        </RNView>
+      </RNView>
+    );
+  }
+
+  // ── Native (iOS / Android) ────────────────────────────────────────────────────
+  const pickerDate = value ? parseDMY(value) : new Date(1990, 0, 1);
+
+  // Lazy-require so the web bundle never tries to resolve the native module.
+  let DateTimePicker: any = null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    DateTimePicker = require('@react-native-community/datetimepicker').default;
+  } catch {
+    // Native module not available — fall back to plain text input
+  }
+
+  return (
+    <>
+      <TouchableOpacity
+        style={[styles.inputWrap, { backgroundColor: inputBg, borderColor: inputBorder }]}
+        onPress={() => setShowPicker(true)}
+        activeOpacity={0.7}
+      >
+        <FontAwesome name="calendar-o" size={15} color={placeholderColor} style={styles.inputIcon} />
+        <TextInput
+          style={[styles.input, { color: value ? inputColor : placeholderColor }]}
+          placeholder="Date of birth (DD/MM/YYYY)"
+          placeholderTextColor={placeholderColor}
+          value={value}
+          onChangeText={onChange}
+          keyboardType="numeric"
+          autoCapitalize="none"
+          editable={!DateTimePicker}
+        />
+        {!!DateTimePicker && (
+          <FontAwesome name="chevron-down" size={12} color={placeholderColor} />
+        )}
+      </TouchableOpacity>
+
+      {showPicker && !!DateTimePicker && (
+        <Modal transparent animationType="fade" onRequestClose={() => setShowPicker(false)}>
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' }}
+            activeOpacity={1}
+            onPress={() => setShowPicker(false)}
+          >
+            <RNView style={{ backgroundColor: isDark ? '#1A1A1A' : '#fff', paddingBottom: 24 }}>
+              <DateTimePicker
+                value={pickerDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                maximumDate={new Date()}
+                minimumDate={new Date(1900, 0, 1)}
+                onChange={(_: any, selected?: Date) => {
+                  if (Platform.OS !== 'ios') setShowPicker(false);
+                  if (selected) onChange(formatDMY(selected));
+                }}
+              />
+            </RNView>
+          </TouchableOpacity>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
+
 export default function RegisterScreen() {
   const router = useRouter();
   const { type: typeParam } = useLocalSearchParams<{ type: AccountType }>();
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme() ?? 'light';
   const isDark = scheme === 'dark';
+  const { signUp } = useAuth();
 
   const [accountType, setAccountType] = useState<AccountType>(typeParam ?? 'individual');
   const [partnerType, setPartnerType] = useState<PartnerType>('insurance');
@@ -50,6 +249,8 @@ export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const [form, setForm] = useState({
     fullName: '',
@@ -68,6 +269,7 @@ export default function RegisterScreen() {
   const set = (key: keyof typeof form) => (val: string) =>
     setForm((f) => ({ ...f, [key]: val }));
 
+  // Derived colours (only used by password fields inline)
   const inputBg = isDark ? '#1E1E1E' : '#F5F5F5';
   const inputBorder = isDark ? '#2E2E2E' : '#E5E5E5';
   const inputColor = isDark ? '#F5F5F5' : '#1A1A1A';
@@ -75,37 +277,68 @@ export default function RegisterScreen() {
   const dividerColor = isDark ? '#2E2E2E' : '#E5E5E5';
   const mutedBg = isDark ? '#1A1A1A' : '#EFEFEF';
 
-  const Field = ({
-    icon,
-    placeholder,
-    value,
-    onChangeText,
-    keyboardType = 'default',
-    autoCapitalize = 'words',
-    autoComplete = 'off',
-  }: {
-    icon: React.ComponentProps<typeof FontAwesome>['name'];
-    placeholder: string;
-    value: string;
-    onChangeText: (v: string) => void;
-    keyboardType?: React.ComponentProps<typeof TextInput>['keyboardType'];
-    autoCapitalize?: React.ComponentProps<typeof TextInput>['autoCapitalize'];
-    autoComplete?: React.ComponentProps<typeof TextInput>['autoComplete'];
-  }) => (
-    <RNView style={[styles.inputWrap, { backgroundColor: inputBg, borderColor: inputBorder }]}>
-      <FontAwesome name={icon} size={15} color={placeholderColor} style={styles.inputIcon} />
-      <TextInput
-        style={[styles.input, { color: inputColor }]}
-        placeholder={placeholder}
-        placeholderTextColor={placeholderColor}
-        value={value}
-        onChangeText={onChangeText}
-        keyboardType={keyboardType}
-        autoCapitalize={autoCapitalize}
-        autoComplete={autoComplete}
-      />
-    </RNView>
-  );
+  const handleRegister = async () => {
+    if (!termsAccepted) return;
+    setError('');
+
+    if (accountType === 'individual') {
+      if (!form.fullName.trim()) { setError('Full name is required.'); return; }
+    } else if (accountType === 'partners') {
+      if (!form.contactName.trim()) { setError('Contact person name is required.'); return; }
+      if (!form.orgName.trim()) { setError('Organisation name is required.'); return; }
+    } else {
+      if (!form.fullName.trim()) { setError('Full name is required.'); return; }
+      if (!form.companyName.trim()) { setError('Company name is required.'); return; }
+    }
+    if (!form.email.trim()) { setError('Email address is required.'); return; }
+    if (!form.phone.trim()) { setError('Phone number is required.'); return; }
+    if (form.password.length < 6) { setError('Password must be at least 6 characters.'); return; }
+    if (form.password !== form.confirmPassword) { setError('Passwords do not match.'); return; }
+
+    setSubmitting(true);
+    try {
+      let profileData: Parameters<typeof signUp>[2];
+
+      if (accountType === 'individual') {
+        profileData = {
+          fullName: form.fullName.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+          accountType,
+          gender: (gender || undefined) as any,
+          dob: form.dob || undefined,
+        };
+      } else if (accountType === 'partners') {
+        profileData = {
+          fullName: form.contactName.trim(),
+          contactName: form.contactName.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+          accountType,
+          orgName: form.orgName.trim(),
+          regNumber: form.regNumber.trim() || undefined,
+          partnerType: partnerType as any,
+        };
+      } else {
+        profileData = {
+          fullName: form.fullName.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+          accountType,
+          companyName: form.companyName.trim(),
+          employeeId: form.employeeId.trim() || undefined,
+        };
+      }
+
+      await signUp(form.email.trim(), form.password, profileData);
+      router.replace('/(tabs)');
+    } catch (e: any) {
+      console.error('Registration error — code:', e.code, '| message:', e.message);
+      setError(firebaseErrorMessage(e.code ?? ''));
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -151,10 +384,10 @@ export default function RegisterScreen() {
           {accountType === 'individual' && (
             <RNView style={styles.fieldGroup}>
               <Text style={styles.groupLabel}>Personal Information</Text>
-              <Field icon="user-o" placeholder="Full name" value={form.fullName} onChangeText={set('fullName')} />
-              <Field icon="envelope-o" placeholder="Email address" value={form.email} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
-              <Field icon="phone" placeholder="Phone number" value={form.phone} onChangeText={set('phone')} keyboardType="phone-pad" autoCapitalize="none" autoComplete="tel" />
-              <Field icon="calendar-o" placeholder="Date of birth (DD/MM/YYYY)" value={form.dob} onChangeText={set('dob')} keyboardType="numeric" autoCapitalize="none" />
+              <Field isDark={isDark} icon="user-o" placeholder="Full name" value={form.fullName} onChangeText={set('fullName')} />
+              <Field isDark={isDark} icon="envelope-o" placeholder="Email address" value={form.email} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
+              <Field isDark={isDark} icon="phone" placeholder="Phone number" value={form.phone} onChangeText={set('phone')} keyboardType="phone-pad" autoCapitalize="none" autoComplete="tel" />
+              <DateField isDark={isDark} value={form.dob} onChange={set('dob')} />
 
               <Text style={[styles.inlineLabel, { marginTop: 4 }]}>Gender</Text>
               <RNView style={styles.pillRow}>
@@ -183,10 +416,10 @@ export default function RegisterScreen() {
           {accountType === 'partners' && (
             <RNView style={styles.fieldGroup}>
               <Text style={styles.groupLabel}>Organisation Details</Text>
-              <Field icon="user-o" placeholder="Contact person name" value={form.contactName} onChangeText={set('contactName')} />
-              <Field icon="envelope-o" placeholder="Email address" value={form.email} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
-              <Field icon="phone" placeholder="Phone number" value={form.phone} onChangeText={set('phone')} keyboardType="phone-pad" autoCapitalize="none" autoComplete="tel" />
-              <Field icon="building-o" placeholder="Organisation name" value={form.orgName} onChangeText={set('orgName')} />
+              <Field isDark={isDark} icon="user-o" placeholder="Contact person name" value={form.contactName} onChangeText={set('contactName')} />
+              <Field isDark={isDark} icon="envelope-o" placeholder="Email address" value={form.email} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
+              <Field isDark={isDark} icon="phone" placeholder="Phone number" value={form.phone} onChangeText={set('phone')} keyboardType="phone-pad" autoCapitalize="none" autoComplete="tel" />
+              <Field isDark={isDark} icon="building-o" placeholder="Organisation name" value={form.orgName} onChangeText={set('orgName')} />
 
               <Text style={[styles.inlineLabel, { marginTop: 4 }]}>Partner type</Text>
               <RNView style={styles.pillRow}>
@@ -209,7 +442,7 @@ export default function RegisterScreen() {
                 })}
               </RNView>
 
-              <Field icon="id-card-o" placeholder="Registration / licence number" value={form.regNumber} onChangeText={set('regNumber')} autoCapitalize="characters" />
+              <Field isDark={isDark} icon="id-card-o" placeholder="Registration / licence number" value={form.regNumber} onChangeText={set('regNumber')} autoCapitalize="characters" />
             </RNView>
           )}
 
@@ -217,11 +450,11 @@ export default function RegisterScreen() {
           {accountType === 'corporate' && (
             <RNView style={styles.fieldGroup}>
               <Text style={styles.groupLabel}>Employee Details</Text>
-              <Field icon="user-o" placeholder="Full name" value={form.fullName} onChangeText={set('fullName')} />
-              <Field icon="envelope-o" placeholder="Work email address" value={form.email} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
-              <Field icon="phone" placeholder="Phone number" value={form.phone} onChangeText={set('phone')} keyboardType="phone-pad" autoCapitalize="none" autoComplete="tel" />
-              <Field icon="building-o" placeholder="Company name" value={form.companyName} onChangeText={set('companyName')} />
-              <Field icon="id-badge" placeholder="Employee ID" value={form.employeeId} onChangeText={set('employeeId')} autoCapitalize="characters" />
+              <Field isDark={isDark} icon="user-o" placeholder="Full name" value={form.fullName} onChangeText={set('fullName')} />
+              <Field isDark={isDark} icon="envelope-o" placeholder="Work email address" value={form.email} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
+              <Field isDark={isDark} icon="phone" placeholder="Phone number" value={form.phone} onChangeText={set('phone')} keyboardType="phone-pad" autoCapitalize="none" autoComplete="tel" />
+              <Field isDark={isDark} icon="building-o" placeholder="Company name" value={form.companyName} onChangeText={set('companyName')} />
+              <Field isDark={isDark} icon="id-badge" placeholder="Employee ID" value={form.employeeId} onChangeText={set('employeeId')} autoCapitalize="characters" />
             </RNView>
           )}
 
@@ -287,13 +520,25 @@ export default function RegisterScreen() {
             </Text>
           </TouchableOpacity>
 
+          {/* ── Error ── */}
+          {!!error && (
+            <RNView style={styles.errorBox}>
+              <FontAwesome name="exclamation-circle" size={13} color="#C62828" style={{ marginRight: 8 }} />
+              <Text style={styles.errorText}>{error}</Text>
+            </RNView>
+          )}
+
           {/* ── Register button ── */}
           <TouchableOpacity
-            style={[styles.registerBtn, !termsAccepted && styles.registerBtnDisabled]}
+            style={[styles.registerBtn, (!termsAccepted || submitting) && styles.registerBtnDisabled]}
             activeOpacity={0.85}
-            disabled={!termsAccepted}
+            disabled={!termsAccepted || submitting}
+            onPress={handleRegister}
           >
-            <Text style={styles.registerBtnText}>Create Account</Text>
+            {submitting
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={styles.registerBtnText}>Create Account</Text>
+            }
           </TouchableOpacity>
 
           {/* ── Divider ── */}
@@ -333,7 +578,6 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
 
-  // Header
   pageHeader: {
     marginBottom: 24,
   },
@@ -347,7 +591,6 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
 
-  // Account type selector
   section: {
     marginBottom: 20,
   },
@@ -391,7 +634,6 @@ const styles = StyleSheet.create({
     opacity: 1,
   },
 
-  // Field groups
   fieldGroup: {
     gap: 12,
     marginBottom: 20,
@@ -410,7 +652,6 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
 
-  // Input
   inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -430,7 +671,6 @@ const styles = StyleSheet.create({
     height: '100%',
   },
 
-  // Pills (gender / partner type)
   pillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -447,7 +687,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Terms
   termsRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -475,7 +714,21 @@ const styles = StyleSheet.create({
     opacity: 1,
   },
 
-  // Register button
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FDEDED',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#C62828',
+  },
+
   registerBtn: {
     backgroundColor: Colors.primary,
     borderRadius: 12,
@@ -501,7 +754,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
-  // Divider
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -515,7 +767,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
   },
 
-  // Google
   googleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -536,7 +787,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Login link
   loginRow: {
     flexDirection: 'row',
     justifyContent: 'center',

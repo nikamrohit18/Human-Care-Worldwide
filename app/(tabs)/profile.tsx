@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { useAuth } from '@/context/AuthContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,14 +24,6 @@ const ACCOUNT_TYPE_META: Record<AccountType, { label: string; color: string }> =
   corporate:  { label: 'Corporate Employee', color: '#00695C' },
 };
 
-// ─── Mock user (replace with real auth state) ─────────────────────────────────
-
-const MOCK_USER = {
-  name: 'Alex Johnson',
-  email: 'alex.johnson@example.com',
-  phone: '+1 (555) 012-3456',
-  accountType: 'individual' as AccountType,
-};
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -120,12 +113,15 @@ export default function ProfileScreen() {
   const scheme = useColorScheme() ?? 'light';
   const isDark = scheme === 'dark';
 
-  // Replace with real auth state (Context / Zustand / MMKV)
-  const [isGuest, setIsGuest] = useState(false);
+  const { user, profile, signOut } = useAuth();
+  const isGuest = !user;
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [twoFAEnabled, setTwoFAEnabled] = useState(false);
 
-  const { name, email, phone, accountType } = MOCK_USER;
+  const name = profile?.fullName || profile?.contactName || user?.displayName || 'User';
+  const email = profile?.email || user?.email || '';
+  const phone = profile?.phone || '';
+  const accountType: AccountType = profile?.accountType ?? 'individual';
   const typeMeta = ACCOUNT_TYPE_META[accountType];
   const initials = name
     .split(' ')
@@ -140,7 +136,10 @@ export default function ProfileScreen() {
       {
         text: 'Log Out',
         style: 'destructive',
-        onPress: () => router.replace('/welcome'),
+        onPress: async () => {
+          await signOut();
+          router.replace('/welcome');
+        },
       },
     ]);
   };

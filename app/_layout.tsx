@@ -2,13 +2,15 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { HeaderBackButton } from '@react-navigation/elements';
 import { useFonts } from 'expo-font';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
+import Colors from '@/constants/Colors';
 
 export {
   ErrorBoundary,
@@ -47,7 +49,11 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return (
+    <AuthProvider>
+      <RootLayoutNav />
+    </AuthProvider>
+  );
 }
 
 // Bypasses the native stack state on Expo Go where stale screens
@@ -57,7 +63,15 @@ function ServiceBackButton() {
   return (
     <HeaderBackButton
       onPress={() => router.navigate('/(tabs)' as any)}
-      canGoBack
+    />
+  );
+}
+
+function WelcomeBackButton() {
+  return (
+    <HeaderBackButton
+      label="Login"
+      onPress={() => router.navigate('/welcome' as any)}
     />
   );
 }
@@ -66,21 +80,48 @@ const serviceBack = Platform.OS !== 'web'
   ? { headerLeft: () => <ServiceBackButton /> }
   : {};
 
+const welcomeBack = Platform.OS !== 'web'
+  ? { headerLeft: () => <WelcomeBackButton /> }
+  : {};
+
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  const { user, loading } = useAuth();
+  const segments = useSegments();
+  const nav = useRouter();
+
+  // Redirect logged-in users away from auth screens
+  useEffect(() => {
+    if (loading) return;
+    const authScreens = ['welcome', 'register', 'forgot-password'];
+    if (user && authScreens.includes(segments[0] as string)) {
+      nav.replace('/(tabs)');
+    }
+  }, [user, loading, segments]);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="welcome" options={{ headerShown: false }} />
-        <Stack.Screen name="register" options={{ title: 'Create Account', headerBackTitle: 'Login' }} />
-        <Stack.Screen name="forgot-password" options={{ title: 'Forgot Password', headerBackTitle: 'Login' }} />
+        <Stack.Screen name="register" options={{ title: 'Create Account', headerBackTitle: 'Login', ...welcomeBack }} />
+        <Stack.Screen name="forgot-password" options={{ title: 'Forgot Password', headerBackTitle: 'Login', ...welcomeBack }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         <Stack.Screen name="services/ground-ambulance" options={{ title: 'Ground Ambulance', ...serviceBack }} />
         <Stack.Screen name="services/hospital-assistance" options={{ title: 'Hospital Assistance', ...serviceBack }} />
         <Stack.Screen name="services/hospitalization-support" options={{ title: 'Hospitalization Support', ...serviceBack }} />
         <Stack.Screen name="services/tele-consultation" options={{ title: 'Tele Consultation & House Call', ...serviceBack }} />
+        <Stack.Screen name="services/tele-consultation-book" options={{ title: 'Book Consultation' }} />
+        <Stack.Screen name="services/tele-consultation-appointments" options={{ title: 'My Appointments' }} />
+        <Stack.Screen name="services/tele-consultation-call" options={{ headerShown: false }} />
         <Stack.Screen name="services/home-healthcare" options={{ title: 'Home Healthcare', ...serviceBack }} />
         <Stack.Screen name="services/mortal-remains" options={{ title: 'Mortal Remains', ...serviceBack }} />
         <Stack.Screen name="services/corporate-medical" options={{ title: 'Corporate Medical Solution', ...serviceBack }} />

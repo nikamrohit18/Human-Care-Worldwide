@@ -7,6 +7,7 @@ import {
   Platform,
   ScrollView,
   View as RNView,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -14,6 +15,8 @@ import { useRouter } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { useAuth } from '@/context/AuthContext';
+import { firebaseErrorMessage } from '@/lib/firebaseErrors';
 
 const RESEND_COOLDOWN = 30;
 
@@ -23,9 +26,12 @@ export default function ForgotPasswordScreen() {
   const scheme = useColorScheme() ?? 'light';
   const isDark = scheme === 'dark';
 
+  const { resetPassword } = useAuth();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const inputBg = isDark ? '#1E1E1E' : '#F5F5F5';
   const inputBorder = isDark ? '#2E2E2E' : '#E5E5E5';
@@ -39,15 +45,32 @@ export default function ForgotPasswordScreen() {
     return () => clearTimeout(t);
   }, [cooldown]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!email.trim()) return;
-    setSent(true);
-    setCooldown(RESEND_COOLDOWN);
+    setError('');
+    setSubmitting(true);
+    try {
+      await resetPassword(email.trim());
+      setSent(true);
+      setCooldown(RESEND_COOLDOWN);
+    } catch (e: any) {
+      setError(firebaseErrorMessage(e.code ?? ''));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
     if (cooldown > 0) return;
-    setCooldown(RESEND_COOLDOWN);
+    setSubmitting(true);
+    try {
+      await resetPassword(email.trim());
+      setCooldown(RESEND_COOLDOWN);
+    } catch {
+      // silent — user already saw the original email
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -109,13 +132,23 @@ export default function ForgotPasswordScreen() {
                 />
               </RNView>
 
+              {!!error && (
+                <RNView style={styles.errorBox}>
+                  <FontAwesome name="exclamation-circle" size={13} color="#C62828" style={{ marginRight: 8 }} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </RNView>
+              )}
+
               <TouchableOpacity
-                style={[styles.primaryBtn, !email.trim() && styles.primaryBtnDisabled]}
+                style={[styles.primaryBtn, (!email.trim() || submitting) && styles.primaryBtnDisabled]}
                 onPress={handleSend}
                 activeOpacity={0.85}
-                disabled={!email.trim()}
+                disabled={!email.trim() || submitting}
               >
-                <Text style={styles.primaryBtnText}>Send Reset Link</Text>
+                {submitting
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.primaryBtnText}>Send Reset Link</Text>
+                }
               </TouchableOpacity>
             </RNView>
           )}
@@ -290,6 +323,19 @@ const styles = StyleSheet.create({
     opacity: 0.4,
     shadowOpacity: 0,
     elevation: 0,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FDEDED',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#C62828',
   },
   primaryBtnText: {
     color: '#fff',

@@ -8,6 +8,7 @@ import {
   ScrollView,
   View as RNView,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -15,6 +16,8 @@ import { useRouter } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { useAuth } from '@/context/AuthContext';
+import { firebaseErrorMessage } from '@/lib/firebaseErrors';
 
 type LoginType = 'individual' | 'partners' | 'corporate';
 type PartnerType = 'insurance' | 'hospital' | 'corporate-hr';
@@ -37,11 +40,31 @@ export default function WelcomeScreen() {
   const scheme = useColorScheme() ?? 'light';
   const isDark = scheme === 'dark';
 
+  const { signIn } = useAuth();
   const [loginType, setLoginType] = useState<LoginType>('individual');
   const [partnerType, setPartnerType] = useState<PartnerType>('insurance');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password) {
+      setError('Please enter your email and password.');
+      return;
+    }
+    setError('');
+    setSubmitting(true);
+    try {
+      await signIn(email.trim(), password);
+      router.replace('/(tabs)');
+    } catch (e: any) {
+      setError(firebaseErrorMessage(e.code ?? ''));
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const inputBg = isDark ? '#1E1E1E' : '#F5F5F5';
   const inputBorder = isDark ? '#2E2E2E' : '#E5E5E5';
@@ -172,9 +195,25 @@ export default function WelcomeScreen() {
               <Text style={[styles.forgotText, { color: Colors.primary }]}>Forgot Password?</Text>
             </TouchableOpacity>
 
+            {/* Error */}
+            {!!error && (
+              <RNView style={styles.errorBox}>
+                <FontAwesome name="exclamation-circle" size={13} color="#C62828" style={{ marginRight: 8 }} />
+                <Text style={styles.errorText}>{error}</Text>
+              </RNView>
+            )}
+
             {/* Login */}
-            <TouchableOpacity style={styles.loginBtn} activeOpacity={0.85}>
-              <Text style={styles.loginBtnText}>Login</Text>
+            <TouchableOpacity
+              style={[styles.loginBtn, submitting && { opacity: 0.7 }]}
+              onPress={handleLogin}
+              disabled={submitting}
+              activeOpacity={0.85}
+            >
+              {submitting
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.loginBtnText}>Login</Text>
+              }
             </TouchableOpacity>
 
             {/* Divider */}
@@ -330,6 +369,19 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     height: '100%',
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FDEDED',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#C62828',
   },
   forgotRow: {
     alignSelf: 'flex-end',
