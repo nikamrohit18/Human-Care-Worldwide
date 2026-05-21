@@ -32,3 +32,35 @@ There is no test runner or lint script configured yet.
 **New Architecture** — `newArchEnabled: true` in `app.json`. The app runs on React Native's new architecture (Fabric + JSI). Avoid libraries that are not yet compatible.
 
 **Deep link scheme** — `humancareworldwide://` (set in `app.json`).
+
+## Authentication
+
+Firebase Authentication (email/password) via the Firebase JS SDK v12 (modular).
+
+- **`lib/firebase.ts`** — Firebase app + auth initialisation. Platform-aware: `getAuth` on web, `getReactNativePersistence(AsyncStorage)` on native via dynamic `require()`. Uses `getApps()` guard to prevent double-init on hot reload.
+- **`context/AuthContext.tsx`** — `AuthProvider` + `useAuth()` hook. Exposes `user`, `profile`, `loading`, `signIn`, `signUp`, `signOut`, `resetPassword`.
+- **`lib/userStorage.ts`** — Extended user profile (name, phone, DOB, account type, etc.) stored in AsyncStorage under `hcw_profile_<uid>`. Firebase Auth only holds uid/email/displayName.
+- **`lib/firebaseErrors.ts`** — Maps Firebase error codes to user-friendly messages.
+- **Auth screens** — `app/welcome.tsx` (login), `app/register.tsx` (sign-up, three account types), `app/forgot-password.tsx`.
+- **Route guard** — `RootLayoutNav` in `app/_layout.tsx` redirects logged-in users away from auth screens and unauthenticated users away from protected routes.
+
+**Metro config** — `metro.config.js` sets `unstable_enablePackageExports: true` with browser-preferred `unstable_conditionNames` to prevent Firebase from resolving its Node.js bundle on web.
+
+## Tele Consultation feature
+
+Booking flow: `tele-consultation` (overview) → `tele-consultation-book` (date/time/type/duration picker) → `tele-consultation-appointments` (list) → `tele-consultation-call` (live call).
+
+- **`lib/consultationStorage.ts`** — `Consultation` type + AsyncStorage CRUD under `hcw_consultations_<uid>`. `CHARGES` map: video ₹299/499, phone ₹199/349, house-call ₹999/1499 (15/30 min).
+- **`lib/dailyConfig.ts`** — **gitignored** — contains real `DAILY_DOMAIN` and `DAILY_API_KEY`. Copy from `lib/dailyConfig.example.ts` and fill in values. Domain is `humancare`; get the API key from the Daily.co dashboard → Developers.
+- **`app/services/tele-consultation-call.tsx`** — Full-screen video call. Calls `ensureRoom()` to create the Daily.co room if needed, then loads it in a `WebView` (native) or `<iframe>` (web). Overlay HUD: countdown timer (turns red at 2 min), 2-minute warning banner (Animated slide-in), End Call button with confirmation dialog. Auto-ends and marks consultation `completed` when timer hits 0.
+
+**Camera/mic permissions** — declared in `app.json` under `ios.infoPlist` and `android.permissions`. WebView props `mediaCapturePermissionGrantType="grantIfSameHostElseDeny"` (iOS) and `onPermissionRequest` auto-grant (Android) enable camera inside the WebView.
+
+**Expo Go limitation** — iOS Expo Go restricts WebView camera access. Full camera works in a standalone/development build. Web browser (`npm run web`) works immediately.
+
+## Secret files (never commit)
+
+| File | Contents | How to recreate |
+|---|---|---|
+| `lib/dailyConfig.ts` | Daily.co domain + API key | Copy `lib/dailyConfig.example.ts`, fill values |
+| `lib/firebase.ts` | Firebase project config | Firebase Console → Project settings → Web app |
