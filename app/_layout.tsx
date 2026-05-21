@@ -81,13 +81,8 @@ function WelcomeBackButton() {
   );
 }
 
-const serviceBack = Platform.OS !== 'web'
-  ? { headerLeft: () => <ServiceBackButton /> }
-  : {};
-
-const welcomeBack = Platform.OS !== 'web'
-  ? { headerLeft: () => <WelcomeBackButton /> }
-  : {};
+const serviceBack = { headerLeft: () => <ServiceBackButton /> };
+const welcomeBack = { headerLeft: () => <WelcomeBackButton /> };
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
