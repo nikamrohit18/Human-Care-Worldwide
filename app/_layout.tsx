@@ -11,7 +11,7 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import Colors from '@/constants/Colors';
-import { setupNotifications } from '@/lib/notifications';
+import { setupNotifications, registerPushTokenIfNeeded } from '@/lib/notifications';
 
 export {
   ErrorBoundary,
@@ -99,6 +99,11 @@ function RootLayoutNav() {
     }
   }, [user, loading, segments]);
 
+  // Register Expo push token in Firestore whenever the user signs in
+  useEffect(() => {
+    if (user) registerPushTokenIfNeeded(user.uid);
+  }, [user?.uid]);
+
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -122,6 +127,7 @@ function RootLayoutNav() {
         <Stack.Screen name="services/tele-consultation-book" options={{ title: 'Book Consultation' }} />
         <Stack.Screen name="services/tele-consultation-appointments" options={{ title: 'My Appointments' }} />
         <Stack.Screen name="services/tele-consultation-call" options={{ headerShown: false }} />
+        <Stack.Screen name="services/tele-consultation-doctor" options={{ title: 'My Consultations', ...serviceBack }} />
         <Stack.Screen name="services/home-healthcare" options={{ title: 'Home Healthcare', ...serviceBack }} />
         <Stack.Screen name="services/mortal-remains" options={{ title: 'Mortal Remains', ...serviceBack }} />
         <Stack.Screen name="services/corporate-medical" options={{ title: 'Corporate Medical Solution', ...serviceBack }} />

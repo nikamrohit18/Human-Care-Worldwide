@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { Consultation, ConsultationType } from '@/lib/consultationStorage';
+import { savePushToken } from '@/lib/firestoreConsultations';
 
 const TYPE_LABEL: Record<ConsultationType, string> = {
   video:        'Video Call',
@@ -81,4 +82,62 @@ export async function cancelConsultationReminder(
 ): Promise<void> {
   if (Platform.OS === 'web' || !notificationId) return;
   await Notifications.cancelScheduledNotificationAsync(notificationId);
+}
+
+/**
+ * Gets the Expo push token and stores it in Firestore so other devices can
+ * send cross-device push notifications to this user.
+ * Called from _layout.tsx whenever the authenticated user changes.
+ */
+export async function registerPushTokenIfNeeded(uid: string): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    const granted = await requestNotificationPermissions();
+    if (!granted) return;
+    // projectId is required for SDK 50+; fall back gracefully if not configured.
+    let tokenObj: { data: string };
+    try {
+      tokenObj = await Notifications.getExpoPushTokenAsync();
+    } catch {
+      return;
+    }
+    await savePushToken(uid, tokenObj.data);
+  } catch {
+    // Non-critical — app works without push tokens (Firestore real-time still works)
+  }
+}
+
+/**
+ * Schedules a 5-minute reminder for a doctor who has accepted a consultation.
+ * Uses "doctor" wording in the notification body.
+ */
+export async function scheduleReminderForDoctor(
+  c: Pick<Consultation, 'id' | 'date' | 'time' | 'type' | 'duration'>,
+): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+
+  const [year, month, day] = c.date.split('-').map(Number);
+  const [hour, minute] = c.time.split(':').map(Number);
+  const consultationAt = new Date(year, month - 1, day, hour, minute, 0);
+  const notifyAt = new Date(consultationAt.getTime() - 5 * 60 * 1000);
+
+  if (notifyAt <= new Date()) return null;
+
+  const granted = await requestNotificationPermissions();
+  if (!granted) return null;
+
+  const id = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '🩺 Patient Consultation Starting Soon',
+      body: `Your ${c.duration}-min ${TYPE_LABEL[c.type]} with a patient starts in 5 minutes.`,
+      sound: true,
+      data: { consultationId: c.id },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: notifyAt,
+    },
+  });
+
+  return id;
 }

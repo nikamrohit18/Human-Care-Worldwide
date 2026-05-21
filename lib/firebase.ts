@@ -1,5 +1,6 @@
 import { getApps, initializeApp } from 'firebase/app';
 import { getAuth, initializeAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 import { Platform } from 'react-native';
 
 // ─── Firebase project config ────────────────────────────────────────────────
@@ -41,3 +42,4 @@ function createAuth() {
 }
 
 export const auth = createAuth();
+export const db = getFirestore(firebaseApp);

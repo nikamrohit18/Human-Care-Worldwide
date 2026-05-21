@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type ConsultationType = 'video' | 'phone' | 'house-call';
-export type ConsultationStatus = 'upcoming' | 'completed' | 'cancelled';
+export type ConsultationStatus = 'pending' | 'accepted' | 'upcoming' | 'completed' | 'cancelled';
 
 export interface Consultation {
   id: string;

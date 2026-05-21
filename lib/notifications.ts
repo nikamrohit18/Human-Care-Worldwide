@@ -17,3 +17,11 @@ export async function scheduleConsultationReminder(
 export async function cancelConsultationReminder(
   _notificationId: string | undefined,
 ): Promise<void> {}
+
+export async function registerPushTokenIfNeeded(_uid: string): Promise<void> {}
+
+export async function scheduleReminderForDoctor(
+  _c: Consultation,
+): Promise<string | null> {
+  return null;
+}

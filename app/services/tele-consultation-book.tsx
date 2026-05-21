@@ -14,11 +14,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/Colors';
 import { useAuth } from '@/context/AuthContext';
 import {
-  saveConsultation,
+  bookConsultation,
+  storeNotificationId,
   CHARGES,
   ConsultationType,
-  Consultation,
-} from '@/lib/consultationStorage';
+} from '@/lib/firestoreConsultations';
 import { scheduleConsultationReminder } from '@/lib/notifications';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -53,7 +53,7 @@ export default function TeleConsultationBookScreen() {
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme() ?? 'light';
   const isDark = scheme === 'dark';
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   const dates = useMemo(() => {
     const arr: Date[] = [];
@@ -86,23 +86,37 @@ export default function TeleConsultationBookScreen() {
     }
     setSubmitting(true);
     try {
-      const consultation: Consultation = {
-        id: `${user.uid}_${Date.now()}`,
+      const id = `${user.uid}_${Date.now()}`;
+      const patientName = profile?.fullName ?? user.email ?? 'Patient';
+
+      await bookConsultation({
+        id,
+        patientId: user.uid,
+        patientName,
+        date: selectedDate,
+        time: selectedTime,
+        type: selectedType,
+        duration: selectedDuration,
+        charge,
+        createdAt: new Date().toISOString(),
+      });
+
+      // Schedule local 5-min reminder for patient; store ID in Firestore
+      const notificationId = await scheduleConsultationReminder({
+        id,
         userId: user.uid,
         date: selectedDate,
         time: selectedTime,
         type: selectedType,
         duration: selectedDuration,
         charge,
-        status: 'upcoming',
+        status: 'pending',
         createdAt: new Date().toISOString(),
-      };
-      // Save first, then schedule — notification ID is stored back into the record
-      await saveConsultation(consultation);
-      const notificationId = await scheduleConsultationReminder(consultation);
+      });
       if (notificationId) {
-        await saveConsultation({ ...consultation, notificationId });
+        await storeNotificationId(id, 'patientNotificationId', notificationId);
       }
+
       router.replace('/services/tele-consultation-appointments' as any);
     } catch {
       Alert.alert('Error', 'Failed to book consultation. Please try again.');
@@ -254,7 +268,6 @@ export default function TeleConsultationBookScreen() {
         </RNView>
       </RNView>
 
-      {/* Confirm */}
       <TouchableOpacity
         style={[styles.confirmBtn, submitting && { opacity: 0.7 }]}
         onPress={handleConfirm}
@@ -292,11 +305,7 @@ const styles = StyleSheet.create({
   dayName: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
   dateNum: { fontSize: 22, fontWeight: '800', marginVertical: 4 },
   monthName: { fontSize: 11 },
-  slotGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
+  slotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   slot: {
     borderRadius: 8,
     borderWidth: 1,
@@ -316,36 +325,14 @@ const styles = StyleSheet.create({
   },
   typeIcon: { fontSize: 24, marginBottom: 6 },
   typeLabel: { fontSize: 11, fontWeight: '700', textAlign: 'center' },
-  durationRow: {
-    flexDirection: 'row',
-    borderRadius: 12,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  durationBtn: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 18,
-  },
+  durationRow: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
+  durationBtn: { flex: 1, alignItems: 'center', paddingVertical: 18 },
   durationText: { fontSize: 18, fontWeight: '700' },
   durationCharge: { fontSize: 13, marginTop: 4 },
-  summary: {
-    marginTop: 28,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 16,
-  },
+  summary: { marginTop: 28, borderRadius: 12, borderWidth: 1, padding: 16 },
   summaryTitle: { fontSize: 14, fontWeight: '700', marginBottom: 12 },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
-  },
-  summaryTotal: {
-    marginTop: 8,
-    paddingTop: 14,
-    borderTopWidth: 1,
-  },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
+  summaryTotal: { marginTop: 8, paddingTop: 14, borderTopWidth: 1 },
   confirmBtn: {
     backgroundColor: Colors.primary,
     borderRadius: 12,

@@ -14,10 +14,14 @@ import { Text } from '@/components/Themed';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/Colors';
 import { useAuth } from '@/context/AuthContext';
-import { loadConsultations, updateConsultationStatus, Consultation } from '@/lib/consultationStorage';
+import {
+  subscribeToConsultation,
+  markRoomStarted,
+  updateConsultationStatusFS,
+  FirestoreConsultation,
+} from '@/lib/firestoreConsultations';
 import { ensureRoom, isConfigured } from '@/lib/dailyConfig';
 
-// Lazy-load WebView — avoids SSR issues and gracefully handles missing package
 const WebView: any =
   Platform.OS !== 'web'
     ? (() => { try { return require('react-native-webview').WebView; } catch { return null; } })()
@@ -33,11 +37,13 @@ export default function TeleConsultationCallScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
-  const [consultation, setConsultation] = useState<Consultation | null>(null);
+  const [consultation, setConsultation] = useState<FirestoreConsultation | null>(null);
   const [roomUrl, setRoomUrl] = useState<string | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [joined, setJoined] = useState(false);
+  const [roomStartedAt, setRoomStartedAt] = useState<number | null>(null); // ms
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [showWarning, setShowWarning] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -45,31 +51,73 @@ export default function TeleConsultationCallScreen() {
   const warningRef = useRef(false);
   const warningAnim = useRef(new Animated.Value(-60)).current;
 
-  // Load consultation then create/get the Daily.co room
+  const isDoctor =
+    profile?.accountType === 'partners' && profile?.partnerType === 'doctor';
+
+  // Subscribe to consultation via Firestore (works for both patient and doctor)
   useEffect(() => {
-    if (!user || !id) return;
-    loadConsultations(user.uid).then(async list => {
-      const c = list.find(x => x.id === id) ?? null;
+    if (!id) return;
+    const unsub = subscribeToConsultation(id, async (c) => {
       setConsultation(c);
-      if (c) {
+      // Sync roomStartedAt: start timer computation as soon as the server
+      // timestamp is present — regardless of which participant triggered it.
+      if (c?.roomStartedAt) {
+        setRoomStartedAt(c.roomStartedAt.toMillis());
+      }
+      // Prefetch the room URL as soon as we have the consultation
+      if (c && !roomUrl) {
         const url = await ensureRoom(c.id);
         setRoomUrl(url);
       }
     });
-  }, [user, id]);
+    return unsub;
+  }, [id]);
+
+  // Timer: computed from the shared Firestore server timestamp so both
+  // participants see perfectly synchronised countdowns.
+  // Dependency on roomStartedAt — timer restarts only when the anchor changes.
+  useEffect(() => {
+    if (roomStartedAt === null || !consultation) return;
+
+    const duration = consultation.duration * 60;
+
+    const update = () => {
+      const elapsed = Math.floor((Date.now() - roomStartedAt) / 1000);
+      const left = Math.max(0, duration - elapsed);
+      setSecondsLeft(left);
+
+      if (left <= 120 && !warningRef.current) {
+        warningRef.current = true;
+        setShowWarning(true);
+        Animated.spring(warningAnim, { toValue: 0, useNativeDriver: true }).start();
+      }
+
+      if (left <= 0) {
+        clearInterval(timerRef.current!);
+        endCall();
+      }
+    };
+
+    update(); // immediate snapshot
+    timerRef.current = setInterval(update, 1000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [roomStartedAt, consultation?.duration]);
 
   const endCall = useCallback(async () => {
     if (endedRef.current) return;
     endedRef.current = true;
     if (timerRef.current) clearInterval(timerRef.current);
-    if (user && id) await updateConsultationStatus(user.uid, id, 'completed');
-    router.replace('/services/tele-consultation-appointments' as any);
-  }, [user, id, router]);
+    if (id) await updateConsultationStatusFS(id, 'completed');
+    // Route doctor back to doctor screen, patient back to appointments
+    router.replace(
+      isDoctor
+        ? ('/services/tele-consultation-doctor' as any)
+        : ('/services/tele-consultation-appointments' as any),
+    );
+  }, [id, isDoctor, router]);
 
   const confirmEnd = useCallback(() => {
     if (Platform.OS === 'web') {
-      // window.confirm is reliable on web even when an iframe has focus;
-      // Alert.alert on web can silently drop the callback in that context.
       if (window.confirm('End this consultation?')) endCall();
       return;
     }
@@ -83,69 +131,91 @@ export default function TeleConsultationCallScreen() {
     );
   }, [endCall]);
 
-  // Start countdown once consultation is loaded
-  useEffect(() => {
-    if (!consultation) return;
-    let remaining = consultation.duration * 60;
-    setSecondsLeft(remaining);
-
-    timerRef.current = setInterval(() => {
-      remaining -= 1;
-      setSecondsLeft(remaining);
-
-      if (remaining === 120 && !warningRef.current) {
-        warningRef.current = true;
-        setShowWarning(true);
-        Animated.spring(warningAnim, { toValue: 0, useNativeDriver: true }).start();
-      }
-
-      if (remaining <= 0) {
-        clearInterval(timerRef.current!);
-        endCall();
-      }
-    }, 1000);
-
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [consultation?.id]);
+  // When user taps "Join": open video and mark room as started in Firestore.
+  // markRoomStarted is a transaction — only the FIRST caller sets the timestamp;
+  // subsequent callers (e.g. the second participant) are no-ops.
+  const handleJoin = useCallback(async () => {
+    setJoined(true);
+    if (id) {
+      try { await markRoomStarted(id); } catch {}
+    }
+  }, [id]);
 
   // Android hardware back → confirm before leaving
   useEffect(() => {
     if (Platform.OS !== 'android') return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => { confirmEnd(); return true; });
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (joined) { confirmEnd(); return true; }
+      return false;
+    });
     return () => sub.remove();
-  }, [confirmEnd]);
+  }, [joined, confirmEnd]);
 
-  const timerRed = secondsLeft > 0 && secondsLeft <= 120;
+  const timerRed = secondsLeft !== null && secondsLeft > 0 && secondsLeft <= 120;
+  const timerDisplay = secondsLeft !== null ? formatTime(secondsLeft) : '--:--';
 
-  // Loading: waiting for consultation or room URL
-  if (!consultation || !roomUrl) {
+  // ── Loading: waiting for consultation data ────────────────────────────────
+
+  if (!consultation) {
     return (
       <View style={[styles.screen, styles.center]}>
         <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>
-          {!consultation ? 'Loading consultation…' : 'Preparing video room…'}
-        </Text>
+        <Text style={styles.loadingText}>Loading consultation…</Text>
       </View>
     );
   }
 
+  // ── Waiting room: user has not joined yet ─────────────────────────────────
+
+  if (!joined) {
+    const otherJoined = roomStartedAt !== null;
+    return (
+      <View style={[styles.screen, styles.center]}>
+        <Text style={styles.waitIcon}>📹</Text>
+        <Text style={styles.waitTitle}>
+          {isDoctor ? `Patient: ${consultation.patientName}` : 'Tele Consultation'}
+        </Text>
+        <Text style={styles.waitSub}>
+          {otherJoined
+            ? 'The other participant has already joined.'
+            : 'You will join a secure video room.'}
+        </Text>
+
+        {otherJoined && secondsLeft !== null && (
+          <View style={[styles.timerPill, timerRed && styles.timerPillRed, { marginBottom: 24 }]}>
+            <Text style={[styles.timerText, timerRed && styles.timerTextRed]}>
+              {timerDisplay} remaining
+            </Text>
+          </View>
+        )}
+
+        {!roomUrl ? (
+          <ActivityIndicator color={Colors.primary} style={{ marginBottom: 16 }} />
+        ) : (
+          <TouchableOpacity style={styles.joinBtn} onPress={handleJoin} activeOpacity={0.85}>
+            <Text style={styles.joinBtnText}>▶  Join Call Now</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  }
+
+  // ── Active call screen ────────────────────────────────────────────────────
+
   return (
     <View style={styles.screen}>
-      {/* ── Video area ─────────────────────────────────────────────── */}
+      {/* ── Video area ── */}
       {isConfigured() ? (
         Platform.OS === 'web' ? (
-          // Web: <iframe> works perfectly for Daily.co
-          <WebIframe url={roomUrl} />
+          <WebIframe url={roomUrl!} />
         ) : WebView ? (
           <WebView
-            source={{ uri: roomUrl }}
+            source={{ uri: roomUrl! }}
             style={styles.fill}
             javaScriptEnabled
             mediaPlaybackRequiresUserAction={false}
             allowsInlineMediaPlayback
-            // iOS 15+: auto-grant camera/mic to same-origin Daily.co frame
             mediaCapturePermissionGrantType="grantIfSameHostElseDeny"
-            // Android: accept WebRTC camera/mic permission requests from the page
             onPermissionRequest={(e: any) => {
               e.nativeEvent.grant(e.nativeEvent.resources);
             }}
@@ -157,13 +227,11 @@ export default function TeleConsultationCallScreen() {
         <Placeholder
           icon="📹"
           title="Video Call"
-          message={
-            `Set DAILY_DOMAIN in lib/dailyConfig.ts\nand add your DAILY_API_KEY\nto enable live video.\n\nSign up free at daily.co`
-          }
+          message={`Set DAILY_DOMAIN in lib/dailyConfig.ts\nand add your DAILY_API_KEY\nto enable live video.\n\nSign up free at daily.co`}
         />
       )}
 
-      {/* ── 2-minute warning banner ─────────────────────────────────── */}
+      {/* ── 2-minute warning banner ── */}
       {showWarning && (
         <Animated.View
           style={[styles.warningBanner, { transform: [{ translateY: warningAnim }] }]}
@@ -172,20 +240,18 @@ export default function TeleConsultationCallScreen() {
         </Animated.View>
       )}
 
-      {/* ── HUD: timer + end-call button ───────────────────────────── */}
+      {/* ── HUD: timer + end-call ── */}
       <View
         style={[
           styles.hud,
           { paddingBottom: Math.max(insets.bottom, 24) },
-          // On web: box-none makes children inherit pointer-events:none via CSS,
-          // so the button becomes unclickable. Use auto instead.
           Platform.OS === 'web' && { zIndex: 30 },
         ]}
         pointerEvents={Platform.OS === 'web' ? 'auto' : 'box-none'}
       >
         <View style={[styles.timerPill, timerRed && styles.timerPillRed]}>
           <Text style={[styles.timerText, timerRed && styles.timerTextRed]}>
-            {formatTime(secondsLeft)}
+            {timerDisplay}
           </Text>
         </View>
         <TouchableOpacity style={styles.endBtn} onPress={confirmEnd} activeOpacity={0.85}>
@@ -229,8 +295,22 @@ function Placeholder({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#0D0D0D' },
   fill:   { flex: 1 },
-  center: { justifyContent: 'center', alignItems: 'center', backgroundColor: '#0D0D0D' },
+  center: { justifyContent: 'center', alignItems: 'center', backgroundColor: '#0D0D0D', padding: 32 },
   loadingText: { color: '#888', marginTop: 16, fontSize: 14 },
+
+  // Waiting room
+  waitIcon:  { fontSize: 64, marginBottom: 16 },
+  waitTitle: { color: '#fff', fontSize: 20, fontWeight: '700', textAlign: 'center', marginBottom: 8 },
+  waitSub:   { color: '#9CA3AF', fontSize: 14, textAlign: 'center', marginBottom: 32 },
+  joinBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 40,
+  },
+  joinBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
+  // Placeholder
   placeholder: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -240,6 +320,8 @@ const styles = StyleSheet.create({
   placeholderIcon:  { fontSize: 72, marginBottom: 16 },
   placeholderTitle: { color: '#fff', fontSize: 22, fontWeight: '700', marginBottom: 16 },
   placeholderMsg:   { color: '#9CA3AF', fontSize: 14, textAlign: 'center', lineHeight: 22 },
+
+  // Warning banner
   warningBanner: {
     position: 'absolute',
     top: 0, left: 0, right: 0,
@@ -249,6 +331,8 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   warningText: { color: '#fff', fontWeight: '700', fontSize: 14, letterSpacing: 0.3 },
+
+  // HUD
   hud: {
     position: 'absolute',
     bottom: 0, left: 0, right: 0,

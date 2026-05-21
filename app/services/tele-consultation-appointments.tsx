@@ -7,18 +7,18 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/Colors';
 import { useAuth } from '@/context/AuthContext';
 import {
-  loadConsultations,
-  Consultation,
+  subscribeToPatientConsultations,
+  FirestoreConsultation,
   ConsultationType,
   ConsultationStatus,
-} from '@/lib/consultationStorage';
+} from '@/lib/firestoreConsultations';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -47,9 +47,17 @@ const TYPE_ICONS: Record<ConsultationType, string> = {
 };
 
 const STATUS_COLOR: Record<ConsultationStatus, string> = {
-  upcoming:  '#10B981',
+  pending:   '#F59E0B',
+  accepted:  '#10B981',
   completed: '#6B7280',
   cancelled: '#EF4444',
+};
+
+const STATUS_LABEL: Record<ConsultationStatus, string> = {
+  pending:   'Awaiting Doctor',
+  accepted:  'Confirmed',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
 };
 
 export default function TeleConsultationAppointmentsScreen() {
@@ -58,27 +66,24 @@ export default function TeleConsultationAppointmentsScreen() {
   const scheme = useColorScheme() ?? 'light';
   const isDark = scheme === 'dark';
   const { user } = useAuth();
-  const [consultations, setConsultations] = useState<Consultation[]>([]);
+  const [consultations, setConsultations] = useState<FirestoreConsultation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
+  useEffect(() => {
     if (!user) return;
-    const list = await loadConsultations(user.uid);
-    // Sort: most recent first by date+time
-    list.sort((a, b) =>
-      `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`)
-    );
-    setConsultations(list);
-    setLoading(false);
-    setRefreshing(false);
-  }, [user]);
+    const unsub = subscribeToPatientConsultations(user.uid, (list) => {
+      setConsultations(list);
+      setLoading(false);
+    });
+    return unsub;
+  }, [user?.uid]);
 
-  // Reload whenever this screen comes into focus (e.g., after booking)
-  useFocusEffect(useCallback(() => { load(); }, [load]));
-
-  const upcoming = consultations.filter(c => c.status === 'upcoming');
-  const past = consultations.filter(c => c.status !== 'upcoming');
+  const upcoming = consultations.filter(
+    c => c.status === 'pending' || c.status === 'accepted',
+  );
+  const past = consultations.filter(
+    c => c.status === 'completed' || c.status === 'cancelled',
+  );
 
   const bg = isDark ? '#121212' : '#F8F9FA';
   const card = isDark ? '#1E1E1E' : '#FFFFFF';
@@ -94,60 +99,69 @@ export default function TeleConsultationAppointmentsScreen() {
     );
   }
 
-  const renderCard = (c: Consultation) => (
-    <RNView key={c.id} style={[styles.card, { backgroundColor: card, borderColor: border }]}>
-      <RNView style={styles.cardHeader}>
-        <RNView style={styles.cardLeft}>
-          <Text style={styles.cardIcon}>{TYPE_ICONS[c.type]}</Text>
-          <RNView>
-            <Text style={[styles.cardType, { color: textColor }]}>{TYPE_LABELS[c.type]}</Text>
-            <Text style={[styles.cardSub, { color: subText }]}>{c.duration} min</Text>
+  const renderCard = (c: FirestoreConsultation) => {
+    const statusColor = STATUS_COLOR[c.status] ?? '#6B7280';
+    const statusLabel = STATUS_LABEL[c.status] ?? c.status;
+    const canJoin = c.status === 'accepted';
+
+    return (
+      <RNView key={c.id} style={[styles.card, { backgroundColor: card, borderColor: border }]}>
+        <RNView style={styles.cardHeader}>
+          <RNView style={styles.cardLeft}>
+            <Text style={styles.cardIcon}>{TYPE_ICONS[c.type]}</Text>
+            <RNView>
+              <Text style={[styles.cardType, { color: textColor }]}>{TYPE_LABELS[c.type]}</Text>
+              <Text style={[styles.cardSub, { color: subText }]}>{c.duration} min</Text>
+            </RNView>
+          </RNView>
+          <RNView style={[styles.badge, { backgroundColor: statusColor + '20' }]}>
+            <Text style={[styles.badgeText, { color: statusColor }]}>{statusLabel}</Text>
           </RNView>
         </RNView>
-        <RNView style={[styles.badge, { backgroundColor: STATUS_COLOR[c.status] + '20' }]}>
-          <Text style={[styles.badgeText, { color: STATUS_COLOR[c.status] }]}>
-            {c.status.charAt(0).toUpperCase() + c.status.slice(1)}
+
+        {c.doctorName && (
+          <RNView style={[styles.doctorRow, { borderColor: border }]}>
+            <Text style={[styles.doctorLabel, { color: subText }]}>Doctor</Text>
+            <Text style={[styles.doctorName, { color: textColor }]}>Dr. {c.doctorName}</Text>
+          </RNView>
+        )}
+
+        <RNView style={[styles.divider, { borderColor: border }]} />
+
+        <RNView style={styles.cardFooter}>
+          <Text style={[styles.footerItem, { color: subText }]}>📅 {formatDate(c.date)}</Text>
+          <Text style={[styles.footerItem, { color: subText }]}>🕐 {formatTime(c.time)}</Text>
+          <Text style={[styles.footerItem, { color: Colors.primary, fontWeight: '700' }]}>
+            ₹{c.charge}
           </Text>
         </RNView>
+
+        {c.status === 'pending' && (
+          <RNView style={[styles.pendingNote, { borderColor: border }]}>
+            <Text style={[styles.pendingNoteText, { color: subText }]}>
+              ⏳ Waiting for a doctor to accept your request
+            </Text>
+          </RNView>
+        )}
+
+        {canJoin && (
+          <TouchableOpacity
+            style={styles.startBtn}
+            activeOpacity={0.85}
+            onPress={() => router.push(`/services/tele-consultation-call?id=${c.id}` as any)}
+          >
+            <Text style={styles.startBtnText}>▶  Start Consultation</Text>
+          </TouchableOpacity>
+        )}
       </RNView>
-
-      <RNView style={[styles.divider, { borderColor: border }]} />
-
-      <RNView style={styles.cardFooter}>
-        <Text style={[styles.footerItem, { color: subText }]}>📅 {formatDate(c.date)}</Text>
-        <Text style={[styles.footerItem, { color: subText }]}>🕐 {formatTime(c.time)}</Text>
-        <Text style={[styles.footerItem, { color: Colors.primary, fontWeight: '700' }]}>
-          ₹{c.charge}
-        </Text>
-      </RNView>
-
-      {c.status === 'upcoming' && (
-        <TouchableOpacity
-          style={styles.startBtn}
-          activeOpacity={0.85}
-          onPress={() => {
-            // Video call screen — to be built in next phase
-            router.push(`/services/tele-consultation-call?id=${c.id}` as any);
-          }}
-        >
-          <Text style={styles.startBtnText}>▶  Start Consultation</Text>
-        </TouchableOpacity>
-      )}
-    </RNView>
-  );
+    );
+  };
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: bg }}
       contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + 24 }]}
       showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => { setRefreshing(true); load(); }}
-          tintColor={Colors.primary}
-        />
-      }
     >
       <TouchableOpacity
         style={styles.bookBtn}
@@ -200,12 +214,7 @@ const styles = StyleSheet.create({
     marginTop: 28,
     marginBottom: 12,
   },
-  card: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 12,
-  },
+  card: { borderRadius: 12, borderWidth: 1, padding: 16, marginBottom: 12 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   cardIcon: { fontSize: 28 },
@@ -213,9 +222,25 @@ const styles = StyleSheet.create({
   cardSub: { fontSize: 13, marginTop: 2 },
   badge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   badgeText: { fontSize: 12, fontWeight: '700' },
+  doctorRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+  },
+  doctorLabel: { fontSize: 13 },
+  doctorName: { fontSize: 13, fontWeight: '600' },
   divider: { borderTopWidth: 1, marginVertical: 12 },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   footerItem: { fontSize: 13 },
+  pendingNote: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  pendingNoteText: { fontSize: 13, textAlign: 'center' },
   startBtn: {
     backgroundColor: Colors.primary,
     borderRadius: 8,
