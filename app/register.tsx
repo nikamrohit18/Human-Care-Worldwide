@@ -20,7 +20,7 @@ import { useAuth } from '@/context/AuthContext';
 import { firebaseErrorMessage } from '@/lib/firebaseErrors';
 
 type AccountType = 'individual' | 'partners' | 'corporate';
-type PartnerType = 'insurance' | 'hospital' | 'corporate-hr';
+type PartnerType = 'insurance' | 'hospital' | 'corporate-hr' | 'doctor';
 type Gender = 'male' | 'female' | 'other';
 
 const ACCOUNT_TYPES: { id: AccountType; label: string }[] = [
@@ -33,6 +33,7 @@ const PARTNER_TYPES: { id: PartnerType; label: string }[] = [
   { id: 'insurance', label: 'Insurance Company' },
   { id: 'hospital', label: 'Hospital' },
   { id: 'corporate-hr', label: 'Corporate HR' },
+  { id: 'doctor', label: 'Doctor' },
 ];
 
 const GENDERS: { id: Gender; label: string }[] = [
@@ -260,6 +261,7 @@ export default function RegisterScreen() {
     orgName: '',
     contactName: '',
     regNumber: '',
+    specialization: '',
     companyName: '',
     employeeId: '',
     password: '',
@@ -284,8 +286,13 @@ export default function RegisterScreen() {
     if (accountType === 'individual') {
       if (!form.fullName.trim()) { setError('Full name is required.'); return; }
     } else if (accountType === 'partners') {
-      if (!form.contactName.trim()) { setError('Contact person name is required.'); return; }
-      if (!form.orgName.trim()) { setError('Organisation name is required.'); return; }
+      if (partnerType === 'doctor') {
+        if (!form.contactName.trim()) { setError('Full name is required.'); return; }
+        if (!form.specialization.trim()) { setError('Specialization is required.'); return; }
+      } else {
+        if (!form.contactName.trim()) { setError('Contact person name is required.'); return; }
+        if (!form.orgName.trim()) { setError('Organisation name is required.'); return; }
+      }
     } else {
       if (!form.fullName.trim()) { setError('Full name is required.'); return; }
       if (!form.companyName.trim()) { setError('Company name is required.'); return; }
@@ -309,16 +316,30 @@ export default function RegisterScreen() {
           dob: form.dob || undefined,
         };
       } else if (accountType === 'partners') {
-        profileData = {
-          fullName: form.contactName.trim(),
-          contactName: form.contactName.trim(),
-          email: form.email.trim(),
-          phone: form.phone.trim(),
-          accountType,
-          orgName: form.orgName.trim(),
-          regNumber: form.regNumber.trim() || undefined,
-          partnerType: partnerType as any,
-        };
+        if (partnerType === 'doctor') {
+          profileData = {
+            fullName: form.contactName.trim(),
+            contactName: form.contactName.trim(),
+            email: form.email.trim(),
+            phone: form.phone.trim(),
+            accountType,
+            partnerType,
+            specialization: form.specialization.trim(),
+            orgName: form.orgName.trim() || undefined,
+            regNumber: form.regNumber.trim() || undefined,
+          };
+        } else {
+          profileData = {
+            fullName: form.contactName.trim(),
+            contactName: form.contactName.trim(),
+            email: form.email.trim(),
+            phone: form.phone.trim(),
+            accountType,
+            orgName: form.orgName.trim(),
+            regNumber: form.regNumber.trim() || undefined,
+            partnerType,
+          };
+        }
       } else {
         profileData = {
           fullName: form.fullName.trim(),
@@ -415,11 +436,19 @@ export default function RegisterScreen() {
           {/* ── Partner fields ── */}
           {accountType === 'partners' && (
             <RNView style={styles.fieldGroup}>
-              <Text style={styles.groupLabel}>Organisation Details</Text>
-              <Field isDark={isDark} icon="user-o" placeholder="Contact person name" value={form.contactName} onChangeText={set('contactName')} />
+              <Text style={styles.groupLabel}>
+                {partnerType === 'doctor' ? 'Doctor Details' : 'Organisation Details'}
+              </Text>
+
+              <Field
+                isDark={isDark}
+                icon="user-o"
+                placeholder={partnerType === 'doctor' ? 'Full name (Dr.)' : 'Contact person name'}
+                value={form.contactName}
+                onChangeText={set('contactName')}
+              />
               <Field isDark={isDark} icon="envelope-o" placeholder="Email address" value={form.email} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
               <Field isDark={isDark} icon="phone" placeholder="Phone number" value={form.phone} onChangeText={set('phone')} keyboardType="phone-pad" autoCapitalize="none" autoComplete="tel" />
-              <Field isDark={isDark} icon="building-o" placeholder="Organisation name" value={form.orgName} onChangeText={set('orgName')} />
 
               <Text style={[styles.inlineLabel, { marginTop: 4 }]}>Partner type</Text>
               <RNView style={styles.pillRow}>
@@ -442,7 +471,41 @@ export default function RegisterScreen() {
                 })}
               </RNView>
 
-              <Field isDark={isDark} icon="id-card-o" placeholder="Registration / licence number" value={form.regNumber} onChangeText={set('regNumber')} autoCapitalize="characters" />
+              {/* Doctor-specific fields */}
+              {partnerType === 'doctor' && (
+                <>
+                  <Field
+                    isDark={isDark}
+                    icon="stethoscope"
+                    placeholder="Specialization (e.g. Cardiologist)"
+                    value={form.specialization}
+                    onChangeText={set('specialization')}
+                  />
+                  <Field
+                    isDark={isDark}
+                    icon="building-o"
+                    placeholder="Hospital / Clinic affiliation (optional)"
+                    value={form.orgName}
+                    onChangeText={set('orgName')}
+                  />
+                  <Field
+                    isDark={isDark}
+                    icon="id-card-o"
+                    placeholder="Medical registration number"
+                    value={form.regNumber}
+                    onChangeText={set('regNumber')}
+                    autoCapitalize="characters"
+                  />
+                </>
+              )}
+
+              {/* Non-doctor partner fields */}
+              {partnerType !== 'doctor' && (
+                <>
+                  <Field isDark={isDark} icon="building-o" placeholder="Organisation name" value={form.orgName} onChangeText={set('orgName')} />
+                  <Field isDark={isDark} icon="id-card-o" placeholder="Registration / licence number" value={form.regNumber} onChangeText={set('regNumber')} autoCapitalize="characters" />
+                </>
+              )}
             </RNView>
           )}
 

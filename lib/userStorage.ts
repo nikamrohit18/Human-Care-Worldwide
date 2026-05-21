@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type AccountType = 'individual' | 'partners' | 'corporate';
-export type PartnerType = 'insurance' | 'hospital' | 'corporate-hr';
+export type PartnerType = 'insurance' | 'hospital' | 'corporate-hr' | 'doctor';
 export type Gender = 'male' | 'female' | 'other';
 
 export type UserProfile = {
@@ -17,6 +17,8 @@ export type UserProfile = {
   orgName?: string;
   regNumber?: string;
   partnerType?: PartnerType;
+  // Doctor-specific (partnerType === 'doctor')
+  specialization?: string;
   // Corporate-specific
   companyName?: string;
   employeeId?: string;

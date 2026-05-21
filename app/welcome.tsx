@@ -20,7 +20,7 @@ import { useAuth } from '@/context/AuthContext';
 import { firebaseErrorMessage } from '@/lib/firebaseErrors';
 
 type LoginType = 'individual' | 'partners' | 'corporate';
-type PartnerType = 'insurance' | 'hospital' | 'corporate-hr';
+type PartnerType = 'insurance' | 'hospital' | 'corporate-hr' | 'doctor';
 
 const LOGIN_TYPES: { id: LoginType; label: string }[] = [
   { id: 'individual', label: 'Individual\n/ Patient' },
@@ -32,6 +32,7 @@ const PARTNER_TYPES: { id: PartnerType; label: string }[] = [
   { id: 'insurance', label: 'Insurance Company' },
   { id: 'hospital', label: 'Hospital' },
   { id: 'corporate-hr', label: 'Corporate HR' },
+  { id: 'doctor', label: 'Doctor' },
 ];
 
 export default function WelcomeScreen() {
