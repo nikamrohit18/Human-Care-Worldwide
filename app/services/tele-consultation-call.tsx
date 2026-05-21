@@ -67,6 +67,12 @@ export default function TeleConsultationCallScreen() {
   }, [user, id, router]);
 
   const confirmEnd = useCallback(() => {
+    if (Platform.OS === 'web') {
+      // window.confirm is reliable on web even when an iframe has focus;
+      // Alert.alert on web can silently drop the callback in that context.
+      if (window.confirm('End this consultation?')) endCall();
+      return;
+    }
     Alert.alert(
       'End Consultation?',
       'Are you sure you want to end this call?',
@@ -168,8 +174,14 @@ export default function TeleConsultationCallScreen() {
 
       {/* ── HUD: timer + end-call button ───────────────────────────── */}
       <View
-        style={[styles.hud, { paddingBottom: Math.max(insets.bottom, 24) }]}
-        pointerEvents="box-none"
+        style={[
+          styles.hud,
+          { paddingBottom: Math.max(insets.bottom, 24) },
+          // On web: box-none makes children inherit pointer-events:none via CSS,
+          // so the button becomes unclickable. Use auto instead.
+          Platform.OS === 'web' && { zIndex: 30 },
+        ]}
+        pointerEvents={Platform.OS === 'web' ? 'auto' : 'box-none'}
       >
         <View style={[styles.timerPill, timerRed && styles.timerPillRed]}>
           <Text style={[styles.timerText, timerRed && styles.timerTextRed]}>
