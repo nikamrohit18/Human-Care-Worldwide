@@ -14,7 +14,7 @@ import {
 import { db } from '@/lib/firebase';
 
 export type ConsultationType = 'video' | 'phone' | 'house-call';
-export type ConsultationStatus = 'pending' | 'accepted' | 'completed' | 'cancelled';
+export type ConsultationStatus = 'pending' | 'accepted' | 'completed' | 'cancelled' | 'rejected';
 
 export interface FirestoreConsultation {
   id: string;
@@ -79,6 +79,18 @@ export async function acceptConsultation(
     if (!snap.exists()) throw new Error('Consultation not found');
     if (snap.data().status !== 'pending') throw new Error('Already accepted by another doctor');
     t.update(ref, { status: 'accepted', doctorId, doctorName });
+  });
+}
+
+// ── Doctor: reject a pending consultation ────────────────────────────────────
+
+export async function rejectConsultation(consultationId: string): Promise<void> {
+  const ref = doc(db, COLL, consultationId);
+  await runTransaction(db, async (t) => {
+    const snap = await t.get(ref);
+    if (!snap.exists()) throw new Error('Consultation not found');
+    if (snap.data().status !== 'pending') throw new Error('Consultation no longer pending');
+    t.update(ref, { status: 'rejected' });
   });
 }
 

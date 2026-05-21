@@ -17,6 +17,7 @@ import { useAuth } from '@/context/AuthContext';
 import {
   subscribeToDoctorConsultations,
   acceptConsultation,
+  rejectConsultation,
   sendPushNotificationToUser,
   storeNotificationId,
   FirestoreConsultation,
@@ -56,6 +57,7 @@ const STATUS_COLOR: Record<ConsultationStatus, string> = {
   accepted:  '#10B981',
   completed: '#6B7280',
   cancelled: '#EF4444',
+  rejected:  '#EF4444',
 };
 
 const STATUS_LABEL: Record<ConsultationStatus, string> = {
@@ -63,6 +65,7 @@ const STATUS_LABEL: Record<ConsultationStatus, string> = {
   accepted:  'Accepted',
   completed: 'Completed',
   cancelled: 'Cancelled',
+  rejected:  'Rejected',
 };
 
 export default function TeleConsultationDoctorScreen() {
@@ -75,7 +78,8 @@ export default function TeleConsultationDoctorScreen() {
   const [pendingList, setPendingList] = useState<FirestoreConsultation[]>([]);
   const [mineList, setMineList] = useState<FirestoreConsultation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [accepting, setAccepting] = useState<string | null>(null); // consultation ID being accepted
+  const [accepting, setAccepting] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -151,6 +155,41 @@ export default function TeleConsultationDoctorScreen() {
     }
   }, [user, profile]);
 
+  const handleReject = useCallback(async (c: FirestoreConsultation) => {
+    const doReject = async () => {
+      setRejecting(c.id);
+      try {
+        await rejectConsultation(c.id);
+        await sendPushNotificationToUser(
+          c.patientId,
+          '❌ Appointment Declined',
+          `Your ${TYPE_LABELS[c.type]} request for ${formatDate(c.date)} at ${formatTime(c.time)} could not be accommodated. Please book a new slot.`,
+          { consultationId: c.id, screen: 'appointments' },
+        );
+      } catch (e: any) {
+        const msg = 'Failed to decline appointment. Please try again.';
+        if (Platform.OS === 'web') { window.alert(msg); } else { Alert.alert('Error', msg); }
+      } finally {
+        setRejecting(null);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Decline consultation with ${c.patientName} on ${formatDate(c.date)} at ${formatTime(c.time)}?`)) {
+        await doReject();
+      }
+    } else {
+      Alert.alert(
+        'Decline Consultation?',
+        `Decline ${TYPE_LABELS[c.type]} with ${c.patientName} on ${formatDate(c.date)} at ${formatTime(c.time)}?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Decline', style: 'destructive', onPress: doReject },
+        ],
+      );
+    }
+  }, []);
+
   const bg = isDark ? '#121212' : '#F8F9FA';
   const card = isDark ? '#1E1E1E' : '#FFFFFF';
   const border = isDark ? '#2E2E2E' : '#E8E8E8';
@@ -195,17 +234,30 @@ export default function TeleConsultationDoctorScreen() {
         </Text>
       </RNView>
 
-      <TouchableOpacity
-        style={[styles.acceptBtn, accepting === c.id && { opacity: 0.7 }]}
-        activeOpacity={0.85}
-        onPress={() => handleAccept(c)}
-        disabled={accepting === c.id}
-      >
-        {accepting === c.id
-          ? <ActivityIndicator color="#fff" size="small" />
-          : <Text style={styles.acceptBtnText}>✓  Accept Consultation</Text>
-        }
-      </TouchableOpacity>
+      <RNView style={styles.actionRow}>
+        <TouchableOpacity
+          style={[styles.rejectBtn, rejecting === c.id && { opacity: 0.7 }]}
+          activeOpacity={0.85}
+          onPress={() => handleReject(c)}
+          disabled={accepting === c.id || rejecting === c.id}
+        >
+          {rejecting === c.id
+            ? <ActivityIndicator color={Colors.primary} size="small" />
+            : <Text style={styles.rejectBtnText}>✕  Decline</Text>
+          }
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.acceptBtn, accepting === c.id && { opacity: 0.7 }]}
+          activeOpacity={0.85}
+          onPress={() => handleAccept(c)}
+          disabled={accepting === c.id || rejecting === c.id}
+        >
+          {accepting === c.id
+            ? <ActivityIndicator color="#fff" size="small" />
+            : <Text style={styles.acceptBtnText}>✓  Accept</Text>
+          }
+        </TouchableOpacity>
+      </RNView>
     </RNView>
   );
 
@@ -339,12 +391,22 @@ const styles = StyleSheet.create({
   divider: { borderTopWidth: 1, marginVertical: 12 },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   footerItem: { fontSize: 13 },
+  actionRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  rejectBtn: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+  },
+  rejectBtnText: { color: Colors.primary, fontSize: 14, fontWeight: '700' },
   acceptBtn: {
+    flex: 1,
     backgroundColor: '#059669',
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: 'center',
-    marginTop: 12,
   },
   acceptBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   joinBtn: {

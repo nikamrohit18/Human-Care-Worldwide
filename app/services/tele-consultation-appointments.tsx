@@ -51,13 +51,15 @@ const STATUS_COLOR: Record<ConsultationStatus, string> = {
   accepted:  '#10B981',
   completed: '#6B7280',
   cancelled: '#EF4444',
+  rejected:  '#EF4444',
 };
 
 const STATUS_LABEL: Record<ConsultationStatus, string> = {
-  pending:   'Awaiting Doctor',
+  pending:   'Awaiting Confirmation',
   accepted:  'Confirmed',
   completed: 'Completed',
   cancelled: 'Cancelled',
+  rejected:  'Declined by Doctor',
 };
 
 export default function TeleConsultationAppointmentsScreen() {
@@ -82,7 +84,7 @@ export default function TeleConsultationAppointmentsScreen() {
     c => c.status === 'pending' || c.status === 'accepted',
   );
   const past = consultations.filter(
-    c => c.status === 'completed' || c.status === 'cancelled',
+    c => c.status === 'completed' || c.status === 'cancelled' || c.status === 'rejected',
   );
 
   const bg = isDark ? '#121212' : '#F8F9FA';
@@ -139,7 +141,15 @@ export default function TeleConsultationAppointmentsScreen() {
         {c.status === 'pending' && (
           <RNView style={[styles.pendingNote, { borderColor: border }]}>
             <Text style={[styles.pendingNoteText, { color: subText }]}>
-              ⏳ Waiting for a doctor to accept your request
+              ⏳ Awaiting a doctor's confirmation
+            </Text>
+          </RNView>
+        )}
+
+        {c.status === 'rejected' && (
+          <RNView style={[styles.pendingNote, { borderColor: border }]}>
+            <Text style={[styles.pendingNoteText, { color: '#EF4444' }]}>
+              ❌ Doctor was unable to accommodate this request. Please book a new slot.
             </Text>
           </RNView>
         )}
