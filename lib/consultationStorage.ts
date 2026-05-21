@@ -13,7 +13,8 @@ export interface Consultation {
   charge: number;
   status: ConsultationStatus;
   createdAt: string; // ISO
-  _transcript?: string; // internal only, never shown to user
+  notificationId?: string; // expo-notifications scheduled ID for the 5-min reminder
+  _transcript?: string;    // internal only, never shown to user
 }
 
 export const CHARGES: Record<ConsultationType, Record<15 | 30, number>> = {

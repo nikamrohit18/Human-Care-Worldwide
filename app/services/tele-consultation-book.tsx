@@ -19,6 +19,7 @@ import {
   ConsultationType,
   Consultation,
 } from '@/lib/consultationStorage';
+import { scheduleConsultationReminder } from '@/lib/notifications';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -96,7 +97,12 @@ export default function TeleConsultationBookScreen() {
         status: 'upcoming',
         createdAt: new Date().toISOString(),
       };
+      // Save first, then schedule — notification ID is stored back into the record
       await saveConsultation(consultation);
+      const notificationId = await scheduleConsultationReminder(consultation);
+      if (notificationId) {
+        await saveConsultation({ ...consultation, notificationId });
+      }
       router.replace('/services/tele-consultation-appointments' as any);
     } catch {
       Alert.alert('Error', 'Failed to book consultation. Please try again.');

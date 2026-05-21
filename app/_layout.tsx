@@ -11,6 +11,7 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import Colors from '@/constants/Colors';
+import { setupNotifications } from '@/lib/notifications';
 
 export {
   ErrorBoundary,
@@ -36,6 +37,10 @@ export default function RootLayout() {
   useEffect(() => {
     if (error) throw error;
   }, [error]);
+
+  useEffect(() => {
+    setupNotifications();
+  }, []);
 
   useEffect(() => {
     if (loaded && Platform.OS !== 'web') {
