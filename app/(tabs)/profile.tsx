@@ -146,10 +146,7 @@ export default function ProfileScreen() {
       {
         text: t.logOut,
         style: 'destructive',
-        onPress: async () => {
-          await signOut();
-          router.replace('/welcome');
-        },
+        onPress: () => signOut(),
       },
     ]);
   };

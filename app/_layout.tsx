@@ -97,12 +97,15 @@ function RootLayoutNav() {
   const { language, setLanguage, t } = useLanguage();
   const segments = useSegments();
   const nav = useRouter();
-  // Redirect logged-in users away from auth screens
+  // Auth redirect guard
   useEffect(() => {
     if (loading) return;
     const authScreens = ['welcome', 'register', 'forgot-password'];
-    if (user && authScreens.includes(segments[0] as string)) {
+    const onAuthScreen = authScreens.includes(segments[0] as string);
+    if (user && onAuthScreen) {
       nav.replace('/(tabs)');
+    } else if (!user && !onAuthScreen) {
+      nav.replace('/welcome');
     }
   }, [user, loading, segments]);
 
