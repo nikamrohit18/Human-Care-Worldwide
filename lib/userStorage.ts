@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { Language } from '@/lib/i18n';
 
 export type AccountType = 'individual' | 'partners' | 'corporate';
 export type PartnerType = 'insurance' | 'hospital' | 'corporate-hr' | 'doctor';
@@ -14,6 +15,9 @@ export type UserProfile = {
   accountType: AccountType;
   gender?: Gender;
   dob?: string;
+  // Localisation
+  language?: Language;
+  country?: string;
   // Partners-specific
   contactName?: string;
   orgName?: string;

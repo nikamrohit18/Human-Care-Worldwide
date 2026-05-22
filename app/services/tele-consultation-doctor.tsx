@@ -18,6 +18,8 @@ import {
   subscribeToDoctorConsultations,
   acceptConsultation,
   rejectConsultation,
+  cancelConsultation,
+  isCancellable,
   sendPushNotificationToUser,
   storeNotificationId,
   FirestoreConsultation,
@@ -25,6 +27,7 @@ import {
   ConsultationStatus,
 } from '@/lib/firestoreConsultations';
 import { scheduleReminderForDoctor } from '@/lib/notifications';
+import { useLanguage } from '@/context/LanguageContext';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -75,11 +78,13 @@ export default function TeleConsultationDoctorScreen() {
   const isDark = scheme === 'dark';
   const { user, profile } = useAuth();
 
+  const { t } = useLanguage();
   const [pendingList, setPendingList] = useState<FirestoreConsultation[]>([]);
   const [mineList, setMineList] = useState<FirestoreConsultation[]>([]);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -128,11 +133,13 @@ export default function TeleConsultationDoctorScreen() {
       } catch (e: any) {
         const msg = e?.message === 'Already accepted by another doctor'
           ? 'This appointment was just accepted by another doctor.'
-          : 'Failed to accept appointment. Please try again.';
+          : e?.message?.includes('Slot conflict')
+            ? t.slotConflict
+            : 'Failed to accept appointment. Please try again.';
         if (Platform.OS === 'web') {
           window.alert(msg);
         } else {
-          Alert.alert('Error', msg);
+          Alert.alert(t.error, msg);
         }
       } finally {
         setAccepting(null);
@@ -168,7 +175,7 @@ export default function TeleConsultationDoctorScreen() {
         );
       } catch (e: any) {
         const msg = 'Failed to decline appointment. Please try again.';
-        if (Platform.OS === 'web') { window.alert(msg); } else { Alert.alert('Error', msg); }
+        if (Platform.OS === 'web') { window.alert(msg); } else { Alert.alert(t.error, msg); }
       } finally {
         setRejecting(null);
       }
@@ -183,12 +190,52 @@ export default function TeleConsultationDoctorScreen() {
         'Decline Consultation?',
         `Decline ${TYPE_LABELS[c.type]} with ${c.patientName} on ${formatDate(c.date)} at ${formatTime(c.time)}?`,
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Decline', style: 'destructive', onPress: doReject },
+          { text: t.cancel, style: 'cancel' },
+          { text: t.decline, style: 'destructive', onPress: doReject },
         ],
       );
     }
-  }, []);
+  }, [t]);
+
+  const handleCancel = useCallback(async (c: FirestoreConsultation) => {
+    if (!user || !profile) return;
+    if (!isCancellable(c)) {
+      if (Platform.OS === 'web') { window.alert(t.cancelWithin30Error); }
+      else { Alert.alert(t.error, t.cancelWithin30Error); }
+      return;
+    }
+
+    const doctorName = profile.fullName ?? user.email ?? 'Doctor';
+
+    const doCancel = async () => {
+      setCancelling(c.id);
+      try {
+        await cancelConsultation(c.id, 'doctor');
+        await sendPushNotificationToUser(
+          c.patientId,
+          '❌ Appointment Cancelled',
+          `Dr. ${doctorName} has cancelled your ${TYPE_LABELS[c.type]} on ${formatDate(c.date)} at ${formatTime(c.time)}.`,
+          { consultationId: c.id, screen: 'appointments' },
+        );
+      } catch (e: any) {
+        const msg = e?.message?.includes('30 minutes')
+          ? t.cancelWithin30Error
+          : 'Failed to cancel appointment. Please try again.';
+        if (Platform.OS === 'web') { window.alert(msg); } else { Alert.alert(t.error, msg); }
+      } finally {
+        setCancelling(null);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(t.cancelAppointmentMsg)) await doCancel();
+    } else {
+      Alert.alert(t.cancelAppointmentTitle, t.cancelAppointmentMsg, [
+        { text: t.cancel, style: 'cancel' },
+        { text: t.cancelAppointment, style: 'destructive', onPress: doCancel },
+      ]);
+    }
+  }, [user, profile, t]);
 
   const bg = isDark ? '#121212' : '#F8F9FA';
   const card = isDark ? '#1E1E1E' : '#FFFFFF';
@@ -265,6 +312,7 @@ export default function TeleConsultationDoctorScreen() {
     const statusColor = STATUS_COLOR[c.status] ?? '#6B7280';
     const statusLabel = STATUS_LABEL[c.status] ?? c.status;
     const canJoin = c.status === 'accepted';
+    const canCancel = isCancellable(c);
 
     return (
       <RNView key={c.id} style={[styles.card, { backgroundColor: card, borderColor: border }]}>
@@ -302,8 +350,28 @@ export default function TeleConsultationDoctorScreen() {
             activeOpacity={0.85}
             onPress={() => router.push(`/services/tele-consultation-call?id=${c.id}` as any)}
           >
-            <Text style={styles.joinBtnText}>▶  Join Consultation</Text>
+            <Text style={styles.joinBtnText}>{t.joinConsultation}</Text>
           </TouchableOpacity>
+        )}
+
+        {canCancel && (
+          <TouchableOpacity
+            style={[styles.cancelBtn, cancelling === c.id && { opacity: 0.6 }]}
+            activeOpacity={0.85}
+            disabled={cancelling === c.id}
+            onPress={() => handleCancel(c)}
+          >
+            {cancelling === c.id
+              ? <ActivityIndicator color="#EF4444" size="small" />
+              : <Text style={styles.cancelBtnText}>{t.cancelAppointment}</Text>
+            }
+          </TouchableOpacity>
+        )}
+
+        {c.status === 'cancelled' && c.cancelledBy === 'patient' && (
+          <Text style={[styles.recordingHint, { color: '#EF4444' }]}>
+            ❌ {t.cancelledByPatient}
+          </Text>
         )}
 
         {c.status === 'completed' && c.dailyRoomName && (
@@ -417,6 +485,15 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   joinBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  cancelBtn: {
+    borderWidth: 1.5,
+    borderColor: '#EF4444',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  cancelBtnText: { color: '#EF4444', fontSize: 14, fontWeight: '700' },
   recordingHint: { fontSize: 11, marginTop: 8, textAlign: 'center', fontFamily: 'monospace' },
   emptySection: {
     borderRadius: 12,

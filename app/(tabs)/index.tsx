@@ -3,24 +3,26 @@ import { useRouter } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
-
-const SERVICES = [
-  { label: 'Ground Ambulance', route: '/services/ground-ambulance', icon: '🚑' },
-  { label: 'Hospital Assistance', route: '/services/hospital-assistance', icon: '🏥' },
-  { label: 'Hospitalization Support', route: '/services/hospitalization-support', icon: '🩺' },
-  { label: 'Tele Consultation & House Call', route: '/services/tele-consultation', icon: '📱' },
-  { label: 'Home Healthcare', route: '/services/home-healthcare', icon: '🏠' },
-  { label: 'Mortal Remains', route: '/services/mortal-remains', icon: '🕊️' },
-  { label: 'Corporate Medical Solution', route: '/services/corporate-medical', icon: '🏢' },
-  { label: 'Private Charter Service', route: '/services/private-charter', icon: '✈️' },
-  { label: 'Rotary Wing Repatriation', route: '/services/rotary-wing-repatriation', icon: '🚁' },
-  { label: 'Commercial Airline', route: '/services/commercial-airline', icon: '🛫' },
-];
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function HomeScreen() {
   const router = useRouter();
   const scheme = useColorScheme() ?? 'light';
   const isDark = scheme === 'dark';
+  const { t } = useLanguage();
+
+  const SERVICES = [
+    { label: t.svcGroundAmbulance, route: '/services/ground-ambulance', icon: '🚑' },
+    { label: t.svcHospitalAssistance, route: '/services/hospital-assistance', icon: '🏥' },
+    { label: t.svcHospitalizationSupport, route: '/services/hospitalization-support', icon: '🩺' },
+    { label: t.svcTeleConsultation, route: '/services/tele-consultation', icon: '📱' },
+    { label: t.svcHomeHealthcare, route: '/services/home-healthcare', icon: '🏠' },
+    { label: t.svcMortalRemains, route: '/services/mortal-remains', icon: '🕊️' },
+    { label: t.svcCorporateMedical, route: '/services/corporate-medical', icon: '🏢' },
+    { label: t.svcPrivateCharter, route: '/services/private-charter', icon: '✈️' },
+    { label: t.svcRotaryWing, route: '/services/rotary-wing-repatriation', icon: '🚁' },
+    { label: t.svcCommercialAirline, route: '/services/commercial-airline', icon: '🛫' },
+  ];
 
   return (
     <View style={styles.root}>
@@ -29,7 +31,7 @@ export default function HomeScreen() {
         {/* Hero */}
         <RNView style={styles.hero}>
           <Text style={styles.heroTitle}>Human Care Worldwide</Text>
-          <Text style={styles.heroTagline}>Your global medical assistance partner</Text>
+          <Text style={styles.heroTagline}>{t.heroTagline}</Text>
         </RNView>
 
         {/* Emergency Banner */}
@@ -41,8 +43,8 @@ export default function HomeScreen() {
           >
             <Text style={styles.bannerIcon}>🚨</Text>
             <RNView style={styles.bannerTextGroup}>
-              <Text style={styles.bannerTitle}>Medical Emergency?</Text>
-              <Text style={styles.bannerSubtitle}>Tap for immediate assistance</Text>
+              <Text style={styles.bannerTitle}>{t.medicalEmergency}</Text>
+              <Text style={styles.bannerSubtitle}>{t.tapForAssistance}</Text>
             </RNView>
             <Text style={[styles.bannerArrow, { color: Colors.primary }]}>›</Text>
           </TouchableOpacity>
@@ -50,7 +52,7 @@ export default function HomeScreen() {
 
         {/* Services Grid */}
         <RNView style={styles.section}>
-          <Text style={styles.sectionTitle}>Our Services</Text>
+          <Text style={styles.sectionTitle}>{t.ourServices}</Text>
           <RNView style={styles.grid}>
             {SERVICES.map((service) => (
               <TouchableOpacity

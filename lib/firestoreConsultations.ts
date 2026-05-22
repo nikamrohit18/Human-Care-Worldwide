@@ -4,6 +4,7 @@ import {
   setDoc,
   updateDoc,
   getDoc,
+  getDocs,
   query,
   where,
   onSnapshot,
@@ -28,6 +29,7 @@ export interface FirestoreConsultation {
   duration: 15 | 30;
   charge: number;
   status: ConsultationStatus;
+  cancelledBy?: 'patient' | 'doctor';
   createdAt: string;        // ISO
   roomStartedAt: Timestamp | null;
   patientNotificationId: string | null;
@@ -67,6 +69,7 @@ export async function bookConsultation(
 }
 
 // ── Doctor: accept a pending consultation (atomic — only one doctor can win) ─
+// Also checks that the doctor has no conflicting slot on the same date.
 
 export async function acceptConsultation(
   consultationId: string,
@@ -74,6 +77,33 @@ export async function acceptConsultation(
   doctorName: string,
 ): Promise<void> {
   const ref = doc(db, COLL, consultationId);
+
+  // Read target consultation first to get date/time/duration for conflict check
+  const initialSnap = await getDoc(ref);
+  if (!initialSnap.exists()) throw new Error('Consultation not found');
+  const c = initialSnap.data() as FirestoreConsultation;
+
+  // Check whether doctor already has an accepted slot that overlaps on the same date
+  const conflictSnap = await getDocs(
+    query(collection(db, COLL),
+      where('doctorId', '==', doctorId),
+      where('status', '==', 'accepted'),
+      where('date', '==', c.date),
+    ),
+  );
+  const [newH, newM] = c.time.split(':').map(Number);
+  const newStart = newH * 60 + newM;
+  const newEnd = newStart + c.duration;
+  for (const d of conflictSnap.docs) {
+    const ex = d.data() as FirestoreConsultation;
+    const [eH, eM] = ex.time.split(':').map(Number);
+    const eStart = eH * 60 + eM;
+    if (newStart < eStart + ex.duration && newEnd > eStart) {
+      throw new Error('Slot conflict: you already have an accepted appointment at this time');
+    }
+  }
+
+  // Atomic write — only the first doctor to call this wins
   await runTransaction(db, async (t) => {
     const snap = await t.get(ref);
     if (!snap.exists()) throw new Error('Consultation not found');
@@ -94,13 +124,47 @@ export async function rejectConsultation(consultationId: string): Promise<void> 
   });
 }
 
-// ── Status update (end call, cancel) ─────────────────────────────────────────
+// ── Status update (end call) ──────────────────────────────────────────────────
 
 export async function updateConsultationStatusFS(
   consultationId: string,
   status: ConsultationStatus,
 ): Promise<void> {
   await updateDoc(doc(db, COLL, consultationId), { status });
+}
+
+// ── Cancellation ─────────────────────────────────────────────────────────────
+
+// Returns true when the consultation can still be cancelled (>30 min remaining).
+export function isCancellable(c: FirestoreConsultation): boolean {
+  if (c.status !== 'pending' && c.status !== 'accepted') return false;
+  const [y, m, d] = c.date.split('-').map(Number);
+  const [h, min] = c.time.split(':').map(Number);
+  const appointmentMs = new Date(y, m - 1, d, h, min).getTime();
+  return appointmentMs - Date.now() > 30 * 60 * 1000;
+}
+
+export async function cancelConsultation(
+  consultationId: string,
+  cancelledBy: 'patient' | 'doctor',
+): Promise<void> {
+  const ref = doc(db, COLL, consultationId);
+  await runTransaction(db, async (t) => {
+    const snap = await t.get(ref);
+    if (!snap.exists()) throw new Error('Consultation not found');
+    const data = snap.data() as FirestoreConsultation;
+    if (data.status !== 'pending' && data.status !== 'accepted') {
+      throw new Error('Cannot cancel this appointment');
+    }
+    // Re-verify 30-minute window inside the transaction
+    const [y, m, d] = data.date.split('-').map(Number);
+    const [h, min] = data.time.split(':').map(Number);
+    const appointmentMs = new Date(y, m - 1, d, h, min).getTime();
+    if (appointmentMs - Date.now() <= 30 * 60 * 1000) {
+      throw new Error('Cannot cancel within 30 minutes of appointment');
+    }
+    t.update(ref, { status: 'cancelled', cancelledBy });
+  });
 }
 
 // ── Store notification IDs so they can be cancelled later ────────────────────

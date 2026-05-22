@@ -4,7 +4,10 @@ import {
   ScrollView,
   TouchableOpacity,
   View as RNView,
+  Modal,
+  FlatList,
   Alert,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -13,6 +16,8 @@ import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { LANGUAGES } from '@/lib/i18n';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -114,9 +119,14 @@ export default function ProfileScreen() {
   const isDark = scheme === 'dark';
 
   const { user, profile, signOut } = useAuth();
+  const { language, isEnglishMode, setLanguage, toggleEnglishMode, t } = useLanguage();
   const isGuest = !user;
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [twoFAEnabled, setTwoFAEnabled] = useState(false);
+  const [showLangPicker, setShowLangPicker] = useState(false);
+
+  const chosenLang = LANGUAGES.find(l => l.code === language);
+  const chosenLangLabel = chosenLang ? `${chosenLang.nativeLabel} (${chosenLang.label})` : 'English';
 
   const name = profile?.fullName || profile?.contactName || user?.displayName || 'User';
   const email = profile?.email || user?.email || '';
@@ -131,10 +141,10 @@ export default function ProfileScreen() {
     .toUpperCase();
 
   const handleLogout = () => {
-    Alert.alert('Log Out', 'Are you sure you want to log out?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t.logOut, t.logOutConfirm, [
+      { text: t.cancel, style: 'cancel' },
       {
-        text: 'Log Out',
+        text: t.logOut,
         style: 'destructive',
         onPress: async () => {
           await signOut();
@@ -247,27 +257,68 @@ export default function ProfileScreen() {
         </MenuCard>
 
         {/* ── Preferences ── */}
-        <SectionHeader title="Preferences" />
+        <SectionHeader title={t.preferences} />
         <MenuCard>
           <MenuItem
             icon="bell"
-            label="Push Notifications"
+            label={t.pushNotifications}
             right={<Toggle value={notificationsEnabled} onToggle={() => setNotificationsEnabled((v) => !v)} />}
-          />
-          <MenuItem
-            icon="globe"
-            label="Language"
-            right={<Text style={styles.menuRightLabel}>English ›</Text>}
           />
         </MenuCard>
 
+        {/* ── Language ── */}
+        <SectionHeader title={t.language} />
+        <MenuCard>
+          <MenuItem
+            icon="globe"
+            label={t.yourLanguage}
+            onPress={() => setShowLangPicker(true)}
+            right={<Text style={styles.menuRightLabel}>{chosenLangLabel} ›</Text>}
+          />
+          {language !== 'en' && (
+            <MenuItem
+              icon="language"
+              label={t.showInEnglish}
+              right={<Toggle value={isEnglishMode} onToggle={toggleEnglishMode} />}
+            />
+          )}
+        </MenuCard>
+
+        {/* Language picker modal */}
+        <Modal visible={showLangPicker} transparent animationType="slide" onRequestClose={() => setShowLangPicker(false)}>
+          <RNView style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}>
+            <RNView style={{ backgroundColor: isDark ? '#1A1A1A' : '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%' }}>
+              <RNView style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: isDark ? '#2E2E2E' : '#E5E5E5' }}>
+                <Text style={{ fontSize: 16, fontWeight: '700' }}>{t.yourLanguage}</Text>
+                <TouchableOpacity onPress={() => setShowLangPicker(false)} hitSlop={12}>
+                  <FontAwesome name="times" size={18} color={isDark ? '#888' : '#555'} />
+                </TouchableOpacity>
+              </RNView>
+              <FlatList
+                data={LANGUAGES}
+                keyExtractor={item => item.code}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={{ paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: isDark ? '#2E2E2E' : '#F0F0F0', backgroundColor: item.code === language ? Colors.primary + '18' : 'transparent', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                    onPress={() => { setLanguage(item.code); setShowLangPicker(false); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 16, color: item.code === language ? Colors.primary : (isDark ? '#F5F5F5' : '#1A1A1A'), fontWeight: item.code === language ? '700' : '400' }}>{item.nativeLabel}</Text>
+                    <Text style={{ fontSize: 13, color: isDark ? '#888' : '#666' }}>{item.label}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+            </RNView>
+          </RNView>
+        </Modal>
+
         {/* ── Support ── */}
-        <SectionHeader title="Support" />
+        <SectionHeader title={t.support} />
         <MenuCard>
           <MenuItem icon="headphones"      label="Contact Us"         onPress={() => {}} />
           <MenuItem icon="question-circle" label="FAQ & Help Centre"  onPress={() => {}} />
-          <MenuItem icon="file-text-o"     label="Terms & Conditions" onPress={() => {}} />
-          <MenuItem icon="shield"          label="Privacy Policy"     onPress={() => {}} />
+          <MenuItem icon="file-text-o"     label={t.termsAndConditions} onPress={() => {}} />
+          <MenuItem icon="shield"          label={t.privacyPolicy}    onPress={() => {}} />
         </MenuCard>
 
         {/* ── Log Out ── */}
@@ -275,7 +326,7 @@ export default function ProfileScreen() {
         <MenuCard>
           <MenuItem
             icon="sign-out"
-            label="Log Out"
+            label={t.logOut}
             onPress={handleLogout}
             danger
           />

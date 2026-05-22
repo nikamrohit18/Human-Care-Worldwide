@@ -2,20 +2,22 @@ import { StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import Colors from '@/constants/Colors';
-
-const EMERGENCY_SERVICES = [
-  { label: 'Ground Ambulance', route: '/services/ground-ambulance', icon: '🚑' },
-  { label: 'Rotary Wing Medical Repatriation', route: '/services/rotary-wing-repatriation', icon: '🚁' },
-  { label: 'Private Charter Service', route: '/services/private-charter', icon: '✈️' },
-];
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function EmergencyScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
+
+  const EMERGENCY_SERVICES = [
+    { label: t.svcGroundAmbulance, route: '/services/ground-ambulance', icon: '🚑' },
+    { label: t.svcRotaryWing, route: '/services/rotary-wing-repatriation', icon: '🚁' },
+    { label: t.svcPrivateCharter, route: '/services/private-charter', icon: '✈️' },
+  ];
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.heading}>Emergency Services</Text>
-      <Text style={styles.subtitle}>Immediate assistance available 24/7</Text>
+      <Text style={styles.heading}>{t.emergencyServices}</Text>
+      <Text style={styles.subtitle}>{t.emergencySubtitle}</Text>
       {EMERGENCY_SERVICES.map((service) => (
         <TouchableOpacity
           key={service.route}

@@ -1,26 +1,28 @@
 import { StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text, View } from '@/components/Themed';
-
-const ALL_SERVICES = [
-  { label: 'Ground Ambulance', route: '/services/ground-ambulance', icon: '🚑' },
-  { label: 'Hospital Assistance', route: '/services/hospital-assistance', icon: '🏥' },
-  { label: 'Domestic & International Hospitalization Support', route: '/services/hospitalization-support', icon: '🩺' },
-  { label: 'Tele Consultation & House Call', route: '/services/tele-consultation', icon: '📱' },
-  { label: 'Home Healthcare', route: '/services/home-healthcare', icon: '🏠' },
-  { label: 'Mortal Remains', route: '/services/mortal-remains', icon: '🕊️' },
-  { label: 'Corporate Medical Solution', route: '/services/corporate-medical', icon: '🏢' },
-  { label: 'Private Charter Service', route: '/services/private-charter', icon: '✈️' },
-  { label: 'Rotary Wing Medical Repatriation', route: '/services/rotary-wing-repatriation', icon: '🚁' },
-  { label: 'Commercial Airline', route: '/services/commercial-airline', icon: '🛫' },
-];
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function ServicesScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
+
+  const ALL_SERVICES = [
+    { label: t.svcGroundAmbulance, route: '/services/ground-ambulance', icon: '🚑' },
+    { label: t.svcHospitalAssistance, route: '/services/hospital-assistance', icon: '🏥' },
+    { label: t.svcHospitalizationSupport, route: '/services/hospitalization-support', icon: '🩺' },
+    { label: t.svcTeleConsultation, route: '/services/tele-consultation', icon: '📱' },
+    { label: t.svcHomeHealthcare, route: '/services/home-healthcare', icon: '🏠' },
+    { label: t.svcMortalRemains, route: '/services/mortal-remains', icon: '🕊️' },
+    { label: t.svcCorporateMedical, route: '/services/corporate-medical', icon: '🏢' },
+    { label: t.svcPrivateCharter, route: '/services/private-charter', icon: '✈️' },
+    { label: t.svcRotaryWing, route: '/services/rotary-wing-repatriation', icon: '🚁' },
+    { label: t.svcCommercialAirline, route: '/services/commercial-airline', icon: '🛫' },
+  ];
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.heading}>All Services</Text>
+      <Text style={styles.heading}>{t.allServices}</Text>
       {ALL_SERVICES.map((service) => (
         <TouchableOpacity
           key={service.route}

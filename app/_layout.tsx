@@ -10,9 +10,11 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { LanguageProvider, useLanguage } from '@/context/LanguageContext';
 import Colors from '@/constants/Colors';
 import { setupNotifications, registerPushTokenIfNeeded } from '@/lib/notifications';
 import { clearLegacyConsultationData } from '@/lib/devCleanup';
+import { LanguageToggle } from '@/components/LanguageToggle';
 
 export {
   ErrorBoundary,
@@ -57,9 +59,11 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <RootLayoutNav />
+      </AuthProvider>
+    </LanguageProvider>
   );
 }
 
@@ -85,13 +89,14 @@ function WelcomeBackButton() {
 
 const serviceBack = { headerLeft: () => <ServiceBackButton /> };
 const welcomeBack = { headerLeft: () => <WelcomeBackButton /> };
+const withToggle = { headerRight: () => <LanguageToggle /> };
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
+  const { language, setLanguage, t } = useLanguage();
   const segments = useSegments();
   const nav = useRouter();
-
   // Redirect logged-in users away from auth screens
   useEffect(() => {
     if (loading) return;
@@ -106,6 +111,13 @@ function RootLayoutNav() {
     if (user) registerPushTokenIfNeeded(user.uid);
   }, [user?.uid]);
 
+  // Sync language from loaded profile (cross-device)
+  useEffect(() => {
+    if (profile?.language && profile.language !== language) {
+      setLanguage(profile.language);
+    }
+  }, [profile?.language]);
+
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -118,24 +130,24 @@ function RootLayoutNav() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="welcome" options={{ headerShown: false }} />
-        <Stack.Screen name="register" options={{ title: 'Create Account', headerBackTitle: 'Login', ...welcomeBack }} />
-        <Stack.Screen name="forgot-password" options={{ title: 'Forgot Password', headerBackTitle: 'Login', ...welcomeBack }} />
+        <Stack.Screen name="register" options={{ title: t.createAccount, headerBackTitle: 'Login', ...welcomeBack }} />
+        <Stack.Screen name="forgot-password" options={{ title: t.forgotPassword, headerBackTitle: 'Login', ...welcomeBack }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="services/ground-ambulance" options={{ title: 'Ground Ambulance', ...serviceBack }} />
-        <Stack.Screen name="services/hospital-assistance" options={{ title: 'Hospital Assistance', ...serviceBack }} />
-        <Stack.Screen name="services/hospitalization-support" options={{ title: 'Hospitalization Support', ...serviceBack }} />
-        <Stack.Screen name="services/tele-consultation" options={{ title: 'Tele Consultation & House Call', ...serviceBack }} />
-        <Stack.Screen name="services/tele-consultation-book" options={{ title: 'Book Consultation' }} />
-        <Stack.Screen name="services/tele-consultation-appointments" options={{ title: 'My Appointments' }} />
+        <Stack.Screen name="services/ground-ambulance" options={{ title: t.svcGroundAmbulance, ...serviceBack, ...withToggle }} />
+        <Stack.Screen name="services/hospital-assistance" options={{ title: t.svcHospitalAssistance, ...serviceBack, ...withToggle }} />
+        <Stack.Screen name="services/hospitalization-support" options={{ title: t.svcHospitalizationSupport, ...serviceBack, ...withToggle }} />
+        <Stack.Screen name="services/tele-consultation" options={{ title: t.svcTeleConsultation, ...serviceBack, ...withToggle }} />
+        <Stack.Screen name="services/tele-consultation-book" options={{ title: t.bookConsultation, ...withToggle }} />
+        <Stack.Screen name="services/tele-consultation-appointments" options={{ title: t.myAppointments, ...withToggle }} />
         <Stack.Screen name="services/tele-consultation-call" options={{ headerShown: false }} />
-        <Stack.Screen name="services/tele-consultation-doctor" options={{ title: 'My Consultations', ...serviceBack }} />
-        <Stack.Screen name="services/home-healthcare" options={{ title: 'Home Healthcare', ...serviceBack }} />
-        <Stack.Screen name="services/mortal-remains" options={{ title: 'Mortal Remains', ...serviceBack }} />
-        <Stack.Screen name="services/corporate-medical" options={{ title: 'Corporate Medical Solution', ...serviceBack }} />
-        <Stack.Screen name="services/private-charter" options={{ title: 'Private Charter Service', ...serviceBack }} />
-        <Stack.Screen name="services/rotary-wing-repatriation" options={{ title: 'Rotary Wing Repatriation', ...serviceBack }} />
-        <Stack.Screen name="services/commercial-airline" options={{ title: 'Commercial Airline', ...serviceBack }} />
+        <Stack.Screen name="services/tele-consultation-doctor" options={{ title: t.myAppointments, ...serviceBack, ...withToggle }} />
+        <Stack.Screen name="services/home-healthcare" options={{ title: t.svcHomeHealthcare, ...serviceBack, ...withToggle }} />
+        <Stack.Screen name="services/mortal-remains" options={{ title: t.svcMortalRemains, ...serviceBack, ...withToggle }} />
+        <Stack.Screen name="services/corporate-medical" options={{ title: t.svcCorporateMedical, ...serviceBack, ...withToggle }} />
+        <Stack.Screen name="services/private-charter" options={{ title: t.svcPrivateCharter, ...serviceBack, ...withToggle }} />
+        <Stack.Screen name="services/rotary-wing-repatriation" options={{ title: t.svcRotaryWing, ...serviceBack, ...withToggle }} />
+        <Stack.Screen name="services/commercial-airline" options={{ title: t.svcCommercialAirline, ...serviceBack, ...withToggle }} />
       </Stack>
     </ThemeProvider>
   );

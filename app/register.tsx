@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  FlatList,
   View as RNView,
   ActivityIndicator,
   Modal,
@@ -18,6 +19,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { useAuth } from '@/context/AuthContext';
 import { firebaseErrorMessage } from '@/lib/firebaseErrors';
+import { Language, LANGUAGES, COUNTRIES } from '@/lib/i18n';
 
 type AccountType = 'individual' | 'partners' | 'corporate';
 type PartnerType = 'insurance' | 'hospital' | 'corporate-hr' | 'doctor';
@@ -83,6 +85,89 @@ function Field({
         autoComplete={autoComplete}
       />
     </RNView>
+  );
+}
+
+// ─── Country picker ───────────────────────────────────────────────────────────
+
+function CountryField({
+  value,
+  onChange,
+  isDark,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  isDark: boolean;
+}) {
+  const [visible, setVisible] = useState(false);
+  const inputBg = isDark ? '#1E1E1E' : '#F5F5F5';
+  const inputBorder = isDark ? '#2E2E2E' : '#E5E5E5';
+  const inputColor = isDark ? '#F5F5F5' : '#1A1A1A';
+  const placeholderColor = isDark ? '#555' : '#AAA';
+
+  if (Platform.OS === 'web') {
+    return (
+      <RNView style={[styles.inputWrap, { backgroundColor: inputBg, borderColor: inputBorder, paddingRight: 14 }]}>
+        <FontAwesome name="globe" size={15} color={placeholderColor} style={styles.inputIcon} />
+        <RNView style={{ flex: 1, height: '100%', justifyContent: 'center' }}>
+          {/* @ts-ignore — native <select> in React Native Web */}
+          <select
+            value={value}
+            onChange={(e: any) => onChange(e.target.value)}
+            style={{
+              border: 'none', outline: 'none', background: 'transparent',
+              fontSize: 15, color: value ? inputColor : placeholderColor,
+              width: '100%', cursor: 'pointer', fontFamily: 'inherit', padding: 0,
+            }}
+          >
+            <option value="">Select country</option>
+            {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </RNView>
+      </RNView>
+    );
+  }
+
+  return (
+    <>
+      <TouchableOpacity
+        style={[styles.inputWrap, { backgroundColor: inputBg, borderColor: inputBorder }]}
+        onPress={() => setVisible(true)}
+        activeOpacity={0.7}
+      >
+        <FontAwesome name="globe" size={15} color={placeholderColor} style={styles.inputIcon} />
+        <Text style={[styles.input, { color: value ? inputColor : placeholderColor, paddingTop: 0 }]}>
+          {value || 'Select country'}
+        </Text>
+        <FontAwesome name="chevron-down" size={12} color={placeholderColor} />
+      </TouchableOpacity>
+
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={() => setVisible(false)}>
+        <RNView style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}>
+          <RNView style={{ backgroundColor: isDark ? '#1A1A1A' : '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%' }}>
+            <RNView style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: isDark ? '#2E2E2E' : '#E5E5E5' }}>
+              <Text style={{ fontSize: 16, fontWeight: '700' }}>Select Country</Text>
+              <TouchableOpacity onPress={() => setVisible(false)} hitSlop={12}>
+                <FontAwesome name="times" size={18} color={isDark ? '#888' : '#555'} />
+              </TouchableOpacity>
+            </RNView>
+            <FlatList
+              data={COUNTRIES}
+              keyExtractor={item => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={{ paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: isDark ? '#2E2E2E' : '#F0F0F0', backgroundColor: item === value ? Colors.primary + '18' : 'transparent' }}
+                  onPress={() => { onChange(item); setVisible(false); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 15, color: item === value ? Colors.primary : (isDark ? '#F5F5F5' : '#1A1A1A'), fontWeight: item === value ? '700' : '400' }}>{item}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          </RNView>
+        </RNView>
+      </Modal>
+    </>
   );
 }
 
@@ -247,6 +332,8 @@ export default function RegisterScreen() {
   const [accountType, setAccountType] = useState<AccountType>(typeParam ?? 'individual');
   const [partnerType, setPartnerType] = useState<PartnerType>('insurance');
   const [gender, setGender] = useState<Gender | ''>('');
+  const [language, setLanguage] = useState<Language>('en');
+  const [country, setCountry] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -306,6 +393,11 @@ export default function RegisterScreen() {
     try {
       let profileData: Parameters<typeof signUp>[2];
 
+      const localisationFields = {
+        language: language || undefined,
+        country: country.trim() || undefined,
+      };
+
       if (accountType === 'individual') {
         profileData = {
           fullName: form.fullName.trim(),
@@ -314,6 +406,7 @@ export default function RegisterScreen() {
           accountType,
           gender: (gender || undefined) as any,
           dob: form.dob || undefined,
+          ...localisationFields,
         };
       } else if (accountType === 'partners') {
         if (partnerType === 'doctor') {
@@ -327,6 +420,7 @@ export default function RegisterScreen() {
             specialization: form.specialization.trim(),
             orgName: form.orgName.trim() || undefined,
             regNumber: form.regNumber.trim() || undefined,
+            ...localisationFields,
           };
         } else {
           profileData = {
@@ -338,6 +432,7 @@ export default function RegisterScreen() {
             orgName: form.orgName.trim(),
             regNumber: form.regNumber.trim() || undefined,
             partnerType,
+            ...localisationFields,
           };
         }
       } else {
@@ -348,6 +443,7 @@ export default function RegisterScreen() {
           accountType,
           companyName: form.companyName.trim(),
           employeeId: form.employeeId.trim() || undefined,
+          ...localisationFields,
         };
       }
 
@@ -430,6 +526,25 @@ export default function RegisterScreen() {
                   );
                 })}
               </RNView>
+
+              <CountryField isDark={isDark} value={country} onChange={setCountry} />
+
+              <Text style={[styles.inlineLabel, { marginTop: 4 }]}>Preferred Language</Text>
+              <RNView style={styles.pillRow}>
+                {LANGUAGES.map((l) => {
+                  const active = language === l.code;
+                  return (
+                    <TouchableOpacity
+                      key={l.code}
+                      style={[styles.pill, { borderColor: active ? Colors.primary : dividerColor }, active && { backgroundColor: Colors.primary }]}
+                      onPress={() => setLanguage(l.code)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.pillText, active && { color: '#fff' }]}>{l.nativeLabel}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </RNView>
             </RNView>
           )}
 
@@ -506,6 +621,25 @@ export default function RegisterScreen() {
                   <Field isDark={isDark} icon="id-card-o" placeholder="Registration / licence number" value={form.regNumber} onChangeText={set('regNumber')} autoCapitalize="characters" />
                 </>
               )}
+
+              <CountryField isDark={isDark} value={country} onChange={setCountry} />
+
+              <Text style={[styles.inlineLabel, { marginTop: 4 }]}>Preferred Language</Text>
+              <RNView style={styles.pillRow}>
+                {LANGUAGES.map((l) => {
+                  const active = language === l.code;
+                  return (
+                    <TouchableOpacity
+                      key={l.code}
+                      style={[styles.pill, { borderColor: active ? Colors.primary : dividerColor }, active && { backgroundColor: Colors.primary }]}
+                      onPress={() => setLanguage(l.code)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.pillText, active && { color: '#fff' }]}>{l.nativeLabel}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </RNView>
             </RNView>
           )}
 
@@ -518,6 +652,25 @@ export default function RegisterScreen() {
               <Field isDark={isDark} icon="phone" placeholder="Phone number" value={form.phone} onChangeText={set('phone')} keyboardType="phone-pad" autoCapitalize="none" autoComplete="tel" />
               <Field isDark={isDark} icon="building-o" placeholder="Company name" value={form.companyName} onChangeText={set('companyName')} />
               <Field isDark={isDark} icon="id-badge" placeholder="Employee ID" value={form.employeeId} onChangeText={set('employeeId')} autoCapitalize="characters" />
+
+              <CountryField isDark={isDark} value={country} onChange={setCountry} />
+
+              <Text style={[styles.inlineLabel, { marginTop: 4 }]}>Preferred Language</Text>
+              <RNView style={styles.pillRow}>
+                {LANGUAGES.map((l) => {
+                  const active = language === l.code;
+                  return (
+                    <TouchableOpacity
+                      key={l.code}
+                      style={[styles.pill, { borderColor: active ? Colors.primary : dividerColor }, active && { backgroundColor: Colors.primary }]}
+                      onPress={() => setLanguage(l.code)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.pillText, active && { color: '#fff' }]}>{l.nativeLabel}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </RNView>
             </RNView>
           )}
 
