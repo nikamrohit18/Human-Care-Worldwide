@@ -4,7 +4,7 @@ import { HeaderBackButton } from '@react-navigation/elements';
 import { useFonts } from 'expo-font';
 import { Stack, router, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import 'react-native-reanimated';
 
@@ -97,17 +97,25 @@ function RootLayoutNav() {
   const { language, setLanguage, t } = useLanguage();
   const segments = useSegments();
   const nav = useRouter();
-  // Auth redirect guard
+  const prevUser = useRef(user);
+
+  // Redirect logged-in users away from auth screens
   useEffect(() => {
     if (loading) return;
     const authScreens = ['welcome', 'register', 'forgot-password'];
-    const onAuthScreen = authScreens.includes(segments[0] as string);
-    if (user && onAuthScreen) {
+    if (user && authScreens.includes(segments[0] as string)) {
       nav.replace('/(tabs)');
-    } else if (!user && !onAuthScreen) {
-      nav.replace('/welcome');
     }
   }, [user, loading, segments]);
+
+  // Navigate to welcome after explicit sign-out (detects logged-in → logged-out transition)
+  useEffect(() => {
+    if (loading) return;
+    if (prevUser.current !== null && user === null) {
+      nav.replace('/welcome');
+    }
+    prevUser.current = user;
+  }, [user, loading]);
 
   // Register Expo push token in Firestore whenever the user signs in
   useEffect(() => {

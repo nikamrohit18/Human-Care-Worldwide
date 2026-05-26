@@ -70,6 +70,12 @@ type T = {
   accept: string; decline: string; patient: string; doctor: string;
   slotConflict: string; newRequest: string;
   noConsultations: string; noConsultationsMsg: string;
+  // Forgot password
+  resetYourPassword: string; resetPasswordSubtitle: string;
+  checkYourInbox: string; resetLinkSentPrefix: string;
+  resetLinkNote: string; sendResetLink: string;
+  resendEmail: string; resendIn: string;
+  backToLogin: string; wrongEmail: string; changeIt: string;
   // Common
   loading: string; error: string; ok: string; cancel: string;
   confirm: string; back: string; save: string; and: string;
@@ -125,6 +131,14 @@ const translations: Record<Language, T> = {
     newRequest: 'New Request',
     noConsultations: 'No consultations yet',
     noConsultationsMsg: 'Book your first consultation to get started.',
+    resetYourPassword: 'Reset your password',
+    resetPasswordSubtitle: "Enter your registered email address and we'll send you a secure link to reset your password.",
+    checkYourInbox: 'Check your inbox',
+    resetLinkSentPrefix: 'We sent a reset link to',
+    resetLinkNote: "If you don't see it within a few minutes, check your spam or junk folder.",
+    sendResetLink: 'Send Reset Link',
+    resendEmail: 'Resend email', resendIn: 'Resend in {n}s',
+    backToLogin: 'Back to Login', wrongEmail: 'Wrong email address?', changeIt: 'Change it',
     loading: 'Loading...', error: 'Error', ok: 'OK', cancel: 'Cancel',
     confirm: 'Confirm', back: 'Back', save: 'Save', and: 'and',
   },
