@@ -3,6 +3,7 @@ import {
   StyleSheet, ScrollView, TextInput, TouchableOpacity,
   ActivityIndicator, Platform,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { useLanguage } from '@/context/LanguageContext';
@@ -36,8 +37,8 @@ function isTodayOrFuture(date: Date): boolean {
   return d >= today;
 }
 
-function FlightCard({ flight }: { flight: FlightSummary }) {
-  const landed = flight.flight_ended === 'true';
+function FlightCard({ flight, onViewMap, mapLabel }: { flight: FlightSummary; onViewMap: () => void; mapLabel: string }) {
+  const landed = flight.flight_ended === true || flight.flight_ended === 'true';
   const destIata = flight.dest_iata_actual || flight.dest_iata;
   const destIcao = flight.dest_icao_actual || flight.dest_icao;
 
@@ -91,12 +92,17 @@ function FlightCard({ flight }: { flight: FlightSummary }) {
           {Math.round(flight.actual_distance).toLocaleString()} km
         </Text>
       )}
+
+      <TouchableOpacity style={styles.mapBtn} onPress={onViewMap} activeOpacity={0.8}>
+        <Text style={styles.mapBtnText}>🗺  {mapLabel}</Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
 export default function FlightTrackingScreen() {
   const { t } = useLanguage();
+  const router = useRouter();
   const [flightNumber, setFlightNumber] = useState('');
   const [date, setDate] = useState(new Date());
   const [loading, setLoading] = useState(false);
@@ -201,7 +207,7 @@ export default function FlightTrackingScreen() {
       )}
 
       {!loading && !!errorMsg && (
-        <Text style={styles.errorText}>{errorMsg}</Text>
+        <Text style={styles.errorText} selectable>{errorMsg}</Text>
       )}
 
       {!loading && !errorMsg && searched && results.length === 0 && (
@@ -209,7 +215,29 @@ export default function FlightTrackingScreen() {
       )}
 
       {!loading && results.map(flight => (
-        <FlightCard key={flight.fr24_id} flight={flight} />
+        <FlightCard
+          key={flight.fr24_id}
+          flight={flight}
+          mapLabel={t.viewOnMap}
+          onViewMap={() => router.push({
+            pathname: '/services/flight-tracking-map',
+            params: {
+              fr24Id:     flight.fr24_id,
+              flightNum:  flight.flight,
+              origIata:   flight.orig_iata,
+              origIcao:   flight.orig_icao,
+              destIata:   flight.dest_iata_actual || flight.dest_iata,
+              destIcao:   flight.dest_icao_actual || flight.dest_icao,
+              takeoff:    flight.datetime_takeoff   ?? '',
+              flightTime: String(flight.flight_time ?? 0),
+              aircraft:   flight.type  ?? '',
+              reg:        flight.reg   ?? '',
+              flightEnded: String(flight.flight_ended),
+              departure:  extractTime(flight.datetime_takeoff),
+              arrival:    extractTime(flight.datetime_landed),
+            },
+          } as any)}
+        />
       ))}
     </ScrollView>
   );
@@ -310,4 +338,9 @@ const styles = StyleSheet.create({
   },
   metaText: { fontSize: 12, opacity: 0.55 },
   distanceText: { fontSize: 12, opacity: 0.4, textAlign: 'center', marginTop: 6 },
+  mapBtn: {
+    marginTop: 14, borderWidth: 1.5, borderColor: Colors.primary,
+    borderRadius: 10, paddingVertical: 9, alignItems: 'center',
+  },
+  mapBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 14 },
 });

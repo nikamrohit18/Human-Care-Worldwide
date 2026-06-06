@@ -60,7 +60,7 @@ type T = {
   svcRotaryWing: string; svcCommercialAirline: string;
   svcFlightTracking: string;
   // Flight Tracking
-  trackFlight: string; enterFlightNum: string; flightNotFound: string;
+  trackFlight: string; enterFlightNum: string; flightNotFound: string; viewOnMap: string;
   // Consultation
   bookConsultation: string; bookNew: string; myAppointments: string;
   upcoming: string; history: string;
@@ -113,7 +113,7 @@ const translations: Record<Language, T> = {
     svcRotaryWing: 'Rotary Wing Medical Repatriation', svcCommercialAirline: 'Commercial Airline',
     svcFlightTracking: 'Flight Tracking',
     trackFlight: 'Track Flight', enterFlightNum: 'Flight number (e.g. AI302)',
-    flightNotFound: 'No flights found. Try a different number or date.',
+    flightNotFound: 'No flights found. Try a different number or date.', viewOnMap: 'View on Map',
     home: 'Home', emergency: 'Emergency', services: 'Services', profile: 'Profile',
     myAccount: 'My Account', security: 'Security', preferences: 'Preferences',
     support: 'Support', logOut: 'Log Out',
@@ -176,7 +176,7 @@ const translations: Record<Language, T> = {
     svcRotaryWing: 'रोटरी विंग चिकित्सा प्रत्यावर्तन', svcCommercialAirline: 'वाणिज्यिक एयरलाइन',
     svcFlightTracking: 'फ्लाइट ट्रैकिंग',
     trackFlight: 'फ्लाइट ट्रैक करें', enterFlightNum: 'फ्लाइट नंबर (जैसे AI302)',
-    flightNotFound: 'कोई फ्लाइट नहीं मिली। कोई अन्य नंबर या तारीख आज़माएं।',
+    flightNotFound: 'कोई फ्लाइट नहीं मिली। कोई अन्य नंबर या तारीख आज़माएं।', viewOnMap: 'नक्शे पर देखें',
     home: 'होम', emergency: 'आपातकाल', services: 'सेवाएं', profile: 'प्रोफ़ाइल',
     myAccount: 'मेरा खाता', security: 'सुरक्षा', preferences: 'प्राथमिकताएं',
     support: 'सहायता', logOut: 'लॉग आउट',
@@ -231,7 +231,7 @@ const translations: Record<Language, T> = {
     svcRotaryWing: 'रोटरी विंग वैद्यकीय प्रत्यावर्तन', svcCommercialAirline: 'व्यावसायिक विमान सेवा',
     svcFlightTracking: 'फ्लाइट ट्रॅकिंग',
     trackFlight: 'फ्लाइट ट्रॅक करा', enterFlightNum: 'फ्लाइट नंबर (उदा. AI302)',
-    flightNotFound: 'कोणतीही फ्लाइट सापडली नाही. वेगळा नंबर किंवा तारीख वापरा.',
+    flightNotFound: 'कोणतीही फ्लाइट सापडली नाही. वेगळा नंबर किंवा तारीख वापरा.', viewOnMap: 'नकाशावर पहा',
     home: 'मुख्यपृष्ठ', emergency: 'आपत्कालीन', services: 'सेवा', profile: 'प्रोफाइल',
     myAccount: 'माझे खाते', security: 'सुरक्षा', preferences: 'प्राधान्ये',
     support: 'समर्थन', logOut: 'लॉग आउट',
@@ -286,7 +286,7 @@ const translations: Record<Language, T> = {
     svcRotaryWing: 'Repatriación Médica en Ala Rotatoria', svcCommercialAirline: 'Aerolínea Comercial',
     svcFlightTracking: 'Seguimiento de Vuelo',
     trackFlight: 'Rastrear Vuelo', enterFlightNum: 'Número de vuelo (ej. AI302)',
-    flightNotFound: 'No se encontraron vuelos. Prueba con otro número o fecha.',
+    flightNotFound: 'No se encontraron vuelos. Prueba con otro número o fecha.', viewOnMap: 'Ver en mapa',
     home: 'Inicio', emergency: 'Emergencia', services: 'Servicios', profile: 'Perfil',
     myAccount: 'Mi cuenta', security: 'Seguridad', preferences: 'Preferencias',
     support: 'Soporte', logOut: 'Cerrar sesión',
@@ -341,7 +341,7 @@ const translations: Record<Language, T> = {
     svcRotaryWing: 'Rapatriement Médical par Hélicoptère', svcCommercialAirline: 'Compagnie Aérienne Commerciale',
     svcFlightTracking: 'Suivi de Vol',
     trackFlight: 'Suivre le Vol', enterFlightNum: 'Numéro de vol (ex. AI302)',
-    flightNotFound: 'Aucun vol trouvé. Essayez un autre numéro ou une autre date.',
+    flightNotFound: 'Aucun vol trouvé. Essayez un autre numéro ou une autre date.', viewOnMap: 'Voir sur la carte',
     home: 'Accueil', emergency: 'Urgence', services: 'Services', profile: 'Profil',
     myAccount: 'Mon compte', security: 'Sécurité', preferences: 'Préférences',
     support: 'Support', logOut: 'Se déconnecter',
@@ -396,7 +396,7 @@ const translations: Record<Language, T> = {
     svcRotaryWing: 'الإعادة الطبية بالمروحية', svcCommercialAirline: 'الطيران التجاري',
     svcFlightTracking: 'تتبع الرحلة',
     trackFlight: 'تتبع الرحلة', enterFlightNum: 'رقم الرحلة (مثال: AI302)',
-    flightNotFound: 'لم يتم العثور على رحلات. جرب رقمًا أو تاريخًا مختلفًا.',
+    flightNotFound: 'لم يتم العثور على رحلات. جرب رقمًا أو تاريخًا مختلفًا.', viewOnMap: 'عرض على الخريطة',
     home: 'الرئيسية', emergency: 'الطوارئ', services: 'الخدمات', profile: 'الملف الشخصي',
     myAccount: 'حسابي', security: 'الأمان', preferences: 'التفضيلات',
     support: 'الدعم', logOut: 'تسجيل الخروج',

@@ -1,6 +1,16 @@
 import { FR24_API_TOKEN } from './fr24Config';
 
 const BASE_URL = 'https://fr24api.flightradar24.com/api/flight-summary/full';
+const LIVE_URL  = 'https://fr24api.flightradar24.com/api/live/flight-positions/full';
+
+const HEADERS = {
+  Accept: 'application/json',
+  'Accept-Version': 'v1',
+} as const;
+
+function authHeaders(token: string) {
+  return { ...HEADERS, Authorization: `Bearer ${token}` };
+}
 
 export interface FlightSummary {
   fr24_id: string;
@@ -27,7 +37,7 @@ export interface FlightSummary {
   hex: string;
   first_seen: string;
   last_seen: string;
-  flight_ended: string;
+  flight_ended: string | boolean;
 }
 
 function toApiDateTime(date: Date): string {
@@ -49,20 +59,41 @@ export async function searchFlights(
     flight_datetime_to: toApiDateTime(to),
   });
 
-  const response = await fetch(`${BASE_URL}?${params}`, {
-    headers: {
-      Authorization: `Bearer ${FR24_API_TOKEN}`,
-      Accept: 'application/json',
-    },
-  });
+  const response = await fetch(`${BASE_URL}?${params}`, { headers: authHeaders(FR24_API_TOKEN) });
 
   if (!response.ok) {
     if (response.status === 401) {
       throw new Error('Invalid API token. Check lib/fr24Config.ts.');
     }
-    throw new Error(`FR24 API error: ${response.status}`);
+    const body = await response.text().catch(() => '');
+    throw new Error(`FR24 API error: ${response.status}${body ? `\n${body}` : ''}`);
   }
 
   const json: { data: FlightSummary[] } = await response.json();
+  return json.data ?? [];
+}
+
+// --- Live position (requires paid FR24 subscription) ---
+export interface FlightPosition {
+  fr24_id: string;
+  lat: number;
+  lon: number;
+  alt: number;       // feet
+  gspeed: number;    // knots
+  heading: number;   // degrees
+  squawk: string;
+  timestamp: number;
+}
+
+export async function getFlightPositions(fr24Id: string): Promise<FlightPosition[]> {
+  const params = new URLSearchParams({ fr24_ids: fr24Id });
+  const response = await fetch(`${LIVE_URL}?${params}`, { headers: authHeaders(FR24_API_TOKEN) });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`FR24 live API error: ${response.status}${body ? `\n${body}` : ''}`);
+  }
+
+  const json: { data: FlightPosition[] } = await response.json();
   return json.data ?? [];
 }
