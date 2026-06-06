@@ -159,6 +159,7 @@ function RootLayoutNav() {
         <Stack.Screen name="services/private-charter" options={{ title: t.svcPrivateCharter, ...serviceBack, ...withToggle }} />
         <Stack.Screen name="services/rotary-wing-repatriation" options={{ title: t.svcRotaryWing, ...serviceBack, ...withToggle }} />
         <Stack.Screen name="services/commercial-airline" options={{ title: t.svcCommercialAirline, ...serviceBack, ...withToggle }} />
+        <Stack.Screen name="services/flight-tracking" options={{ title: t.svcFlightTracking, ...serviceBack, ...withToggle }} />
       </Stack>
     </ThemeProvider>
   );

@@ -58,6 +58,9 @@ type T = {
   svcHomeHealthcare: string; svcMortalRemains: string;
   svcCorporateMedical: string; svcPrivateCharter: string;
   svcRotaryWing: string; svcCommercialAirline: string;
+  svcFlightTracking: string;
+  // Flight Tracking
+  trackFlight: string; enterFlightNum: string; flightNotFound: string;
   // Consultation
   bookConsultation: string; bookNew: string; myAppointments: string;
   upcoming: string; history: string;
@@ -108,6 +111,9 @@ const translations: Record<Language, T> = {
     svcMortalRemains: 'Mortal Remains', svcCorporateMedical: 'Corporate Medical Solution',
     svcPrivateCharter: 'Private Charter Service',
     svcRotaryWing: 'Rotary Wing Medical Repatriation', svcCommercialAirline: 'Commercial Airline',
+    svcFlightTracking: 'Flight Tracking',
+    trackFlight: 'Track Flight', enterFlightNum: 'Flight number (e.g. AI302)',
+    flightNotFound: 'No flights found. Try a different number or date.',
     home: 'Home', emergency: 'Emergency', services: 'Services', profile: 'Profile',
     myAccount: 'My Account', security: 'Security', preferences: 'Preferences',
     support: 'Support', logOut: 'Log Out',
@@ -168,6 +174,9 @@ const translations: Record<Language, T> = {
     svcMortalRemains: 'पार्थिव अवशेष', svcCorporateMedical: 'कॉर्पोरेट चिकित्सा समाधान',
     svcPrivateCharter: 'प्राइवेट चार्टर सेवा',
     svcRotaryWing: 'रोटरी विंग चिकित्सा प्रत्यावर्तन', svcCommercialAirline: 'वाणिज्यिक एयरलाइन',
+    svcFlightTracking: 'फ्लाइट ट्रैकिंग',
+    trackFlight: 'फ्लाइट ट्रैक करें', enterFlightNum: 'फ्लाइट नंबर (जैसे AI302)',
+    flightNotFound: 'कोई फ्लाइट नहीं मिली। कोई अन्य नंबर या तारीख आज़माएं।',
     home: 'होम', emergency: 'आपातकाल', services: 'सेवाएं', profile: 'प्रोफ़ाइल',
     myAccount: 'मेरा खाता', security: 'सुरक्षा', preferences: 'प्राथमिकताएं',
     support: 'सहायता', logOut: 'लॉग आउट',
@@ -220,6 +229,9 @@ const translations: Record<Language, T> = {
     svcMortalRemains: 'पार्थिव अवशेष', svcCorporateMedical: 'कॉर्पोरेट वैद्यकीय उपाय',
     svcPrivateCharter: 'खासगी चार्टर सेवा',
     svcRotaryWing: 'रोटरी विंग वैद्यकीय प्रत्यावर्तन', svcCommercialAirline: 'व्यावसायिक विमान सेवा',
+    svcFlightTracking: 'फ्लाइट ट्रॅकिंग',
+    trackFlight: 'फ्लाइट ट्रॅक करा', enterFlightNum: 'फ्लाइट नंबर (उदा. AI302)',
+    flightNotFound: 'कोणतीही फ्लाइट सापडली नाही. वेगळा नंबर किंवा तारीख वापरा.',
     home: 'मुख्यपृष्ठ', emergency: 'आपत्कालीन', services: 'सेवा', profile: 'प्रोफाइल',
     myAccount: 'माझे खाते', security: 'सुरक्षा', preferences: 'प्राधान्ये',
     support: 'समर्थन', logOut: 'लॉग आउट',
@@ -272,6 +284,9 @@ const translations: Record<Language, T> = {
     svcMortalRemains: 'Restos Mortales', svcCorporateMedical: 'Solución Médica Corporativa',
     svcPrivateCharter: 'Servicio de Vuelo Privado',
     svcRotaryWing: 'Repatriación Médica en Ala Rotatoria', svcCommercialAirline: 'Aerolínea Comercial',
+    svcFlightTracking: 'Seguimiento de Vuelo',
+    trackFlight: 'Rastrear Vuelo', enterFlightNum: 'Número de vuelo (ej. AI302)',
+    flightNotFound: 'No se encontraron vuelos. Prueba con otro número o fecha.',
     home: 'Inicio', emergency: 'Emergencia', services: 'Servicios', profile: 'Perfil',
     myAccount: 'Mi cuenta', security: 'Seguridad', preferences: 'Preferencias',
     support: 'Soporte', logOut: 'Cerrar sesión',
@@ -324,6 +339,9 @@ const translations: Record<Language, T> = {
     svcMortalRemains: 'Dépouilles Mortelles', svcCorporateMedical: "Solution Médicale d'Entreprise",
     svcPrivateCharter: 'Service de Vol Privé',
     svcRotaryWing: 'Rapatriement Médical par Hélicoptère', svcCommercialAirline: 'Compagnie Aérienne Commerciale',
+    svcFlightTracking: 'Suivi de Vol',
+    trackFlight: 'Suivre le Vol', enterFlightNum: 'Numéro de vol (ex. AI302)',
+    flightNotFound: 'Aucun vol trouvé. Essayez un autre numéro ou une autre date.',
     home: 'Accueil', emergency: 'Urgence', services: 'Services', profile: 'Profil',
     myAccount: 'Mon compte', security: 'Sécurité', preferences: 'Préférences',
     support: 'Support', logOut: 'Se déconnecter',
@@ -376,6 +394,9 @@ const translations: Record<Language, T> = {
     svcMortalRemains: 'الرفات البشرية', svcCorporateMedical: 'الحل الطبي للشركات',
     svcPrivateCharter: 'خدمة الطائرة الخاصة',
     svcRotaryWing: 'الإعادة الطبية بالمروحية', svcCommercialAirline: 'الطيران التجاري',
+    svcFlightTracking: 'تتبع الرحلة',
+    trackFlight: 'تتبع الرحلة', enterFlightNum: 'رقم الرحلة (مثال: AI302)',
+    flightNotFound: 'لم يتم العثور على رحلات. جرب رقمًا أو تاريخًا مختلفًا.',
     home: 'الرئيسية', emergency: 'الطوارئ', services: 'الخدمات', profile: 'الملف الشخصي',
     myAccount: 'حسابي', security: 'الأمان', preferences: 'التفضيلات',
     support: 'الدعم', logOut: 'تسجيل الخروج',

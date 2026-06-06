@@ -18,6 +18,7 @@ export default function ServicesScreen() {
     { label: t.svcPrivateCharter, route: '/services/private-charter', icon: '✈️' },
     { label: t.svcRotaryWing, route: '/services/rotary-wing-repatriation', icon: '🚁' },
     { label: t.svcCommercialAirline, route: '/services/commercial-airline', icon: '🛫' },
+    { label: t.svcFlightTracking, route: '/services/flight-tracking', icon: '🛩️' },
   ];
 
   return (

@@ -35,6 +35,7 @@ yarn-error.*
 
 # Secret config files — contain real API keys, never commit
 lib/dailyConfig.ts
+lib/fr24Config.ts
 
 # Claude Code local settings (machine-specific, not shared)
 .claude/settings.local.json
